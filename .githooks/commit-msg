@@ -1,0 +1,106 @@
+#!/bin/sh
+################################################################################
+#################################### SETUPS ####################################
+################################################################################
+RED='\x1b[31m'
+GREEN='\x1b[32m'
+YELLOW='\x1b[33m'
+BLUE='\x1b[34m'
+RESET='\x1b[0m'
+export LC_CTYPE=en_US.UTF-8
+
+
+
+################################################################################
+################################ WHEN REBASING #################################
+################################################################################
+BRANCH_NAME=$(git branch | grep "*" | sed 's/* //')
+REBASE_BRANCH_NAME="^\((no branch).*$"
+
+if [[ $BRANCH_NAME =~ $REBASE_BRANCH_NAME ]]
+then
+	echo 'rebasing'
+	exit 0
+fi
+
+
+
+################################################################################
+################################# BRANCH_TEST ##################################
+################################################################################
+BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD);
+VALID_BRANCH_REGEX="^(feature|hotfix|question|documentation|request|setup)\/(#)[0-9]+$"
+
+if [[ ! $BRANCH_NAME =~ $VALID_BRANCH_REGEX ]]; then
+	echo $RED"[ Invalid Branch ]"$RESET
+	echo "Current Branch: $BRANCH_NAME"
+	echo "Expected      : $GREEN[ISSUE_TYPE]/#[ISSUE_NUMBER]$RESET"
+	echo "┌───────────────────┐"
+	echo "│   Type of issue   │"
+	echo "│$YELLOW 1. feature       $RESET │"
+	echo "│$YELLOW 2. hotfix        $RESET │"
+	echo "│$YELLOW 3. question      $RESET │"
+	echo "│$YELLOW 4. documentation $RESET │"
+	echo "│$YELLOW 5. request       $RESET │"
+	echo "└───────────────────┘"
+	echo " -> e.g.$GREEN hotfix/#15$YELLOW"
+	echo "To rename branch : ``git branch -m [ old_branch ] [ new_branch ]''$RESET"
+  exit 1
+fi
+
+
+
+################################################################################
+############################### COMMIT_MSG TEST ################################
+################################################################################
+COMMIT_SUMMARY=`cat $1 2>/dev/null | head -1` || COMMIT_SUMMARY=$1
+COMMENT_CHAR=`git config core.commentChar` || COMMENT_CHAR='#'
+ISSUE_NUMBER=$(echo $BRANCH_NAME | awk -F'/' '{ print $2 }')
+VALID_COMMIT_TYPE='feat|fix|build|perf|refactor|style|docs|test|chore|setup'
+VALID_COMMIT_SUMMARY_REGEX="^($ISSUE_NUMBER) ($VALID_COMMIT_TYPE)\: [a-z].*$"
+
+if [[ $COMMIT_SUMMARY =~ $VALID_COMMIT_SUMMARY_REGEX ]]; then
+	# Enforce 50/72 Rule
+	lineidx=0
+	while read -r line; do
+		# Skip comments
+		[[ $lineidx -ne 0 && "${line:0:1}" == "$COMMENT_CHAR" ]] && continue
+
+		if [[ $lineidx -eq 0 && ${#line} -gt 50 ]]; then
+			echo $RED"[ 50/72 Rule ]"$RESET
+			echo "Commit summary is over 50 characters long"
+			echo "Input(${#line})  = $YELLOW$line$RESET"
+		elif [[ $lineidx -eq 1 && -n $line ]]; then
+			echo $RED"[ Invalid Commit Description ]"$RESET
+			echo $YELLOW"Commit description should be separated a single line from commit summary"$RESET
+		elif [[ $lineidx -gt 1 && ${#line} -gt 72 ]]; then
+			echo $RED"[ 50/72 Rule ]"$RESET
+			echo "Commit description is over 72 characters long"
+			echo "Input(${#line})  = $YELLOW$line$RESET"
+		else
+			((lineidx++))
+			continue
+		fi
+		exit 1
+	done < "${1}"
+	exit 0
+else
+	echo $RED"[ Invalid Commit Type ]"$RESET
+	echo "Input    = $YELLOW${COMMIT_SUMMARY}$RESET"
+	echo "Expected = $GREEN#[ISSUE_NUBMER] [COMMIT_TYPE]: [COMMIT_SUMMARY(starts with lowercase)]$RESET"
+	echo "┌────────────────┐"
+	echo "│ Type of commit │"
+	echo "│$YELLOW 1. feat       $RESET │"
+	echo "│$YELLOW 2. fix        $RESET │"
+	echo "│$YELLOW 3. build      $RESET │"
+	echo "│$YELLOW 4. perf       $RESET │"
+	echo "│$YELLOW 5. refactor   $RESET │"
+	echo "│$YELLOW 6. style      $RESET │"
+	echo "│$YELLOW 7. docs       $RESET │"
+	echo "│$YELLOW 8. test       $RESET │"
+	echo "│$YELLOW 9. chore      $RESET │"
+	echo "│$YELLOW 10. setup     $RESET │"
+	echo "└────────────────┘"
+	echo " -> e.g.$GREEN git commit -m \"$ISSUE_NUMBER feat: implement HorizontalSlider\"$RESET"
+	exit 1
+fi
