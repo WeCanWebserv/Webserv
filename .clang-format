@@ -1,0 +1,70 @@
+# ref: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+# llvm-style: https://github.com/llvm/llvm-project/blob/main/clang/lib/Format/Format.cpp#L1175-L1365
+BasedOnStyle: LLVM
+
+ColumnLimit: 100
+IndentWidth: 2
+TabWidth: 2
+
+# Never - 탭 사용 안함
+# ForContinuationAndIndentation - 탭으로 인덴트하되 정렬을 위해 스페이스 사용
+# Always - 항상 탭 사용
+UseTab: ForContinuationAndIndentation
+
+# public, private, protected의 indent
+AccessModifierOffset: -4
+
+# 짧은 블록을 한 라인으로 정렬: Never, Empty, Always
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Empty
+
+# template 선언 뒤 개행
+AlwaysBreakTemplateDeclarations: Yes
+
+# 중괄호의 위치
+# true - |{
+# false - |something() {
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: true
+  # 빈 블록에 대한 개행
+  # true - |{
+  #        |}
+  # false - |{}
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+
+# false - 파라미터가 한 라인을 넘어가면 모든 파라미터에 개행
+# true - 라인에 맞게 파라미터 나열
+BinPackParameters: false
+
+# 한 표현식이 여러 라인으로 나뉠 때 사용될 인덴트
+ContinuationIndentWidth: 8
+
+# 첫 라인 개행 허용
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# 함수의 return 타입에 개행을 주기 위한 가중치
+PenaltyReturnTypeOnItsOwnLine: 20
+
+# 주석 텍스트에 강제 개행
+ReflowComments: false
+
+# true - template <class T>
+# false - template<class T>
+SpaceAfterTemplateKeyword: false
+
+# c++03 - vector<set<int> >
+# latest - vector<set<int>>
+Standard: c++03
+
+# vim: filetype=yaml

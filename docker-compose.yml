@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  webserv:
+    build: ./build/
+    image: webserv
+    restart: unless-stopped
+    working_dir: /usr/src/webserv
+    container_name: webserv
+    volumes:
+      - ".:/usr/src/webserv"
+    ports:
+      - "2222:22"
+      - "8080:80"
