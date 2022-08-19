@@ -12,7 +12,7 @@ TabWidth: 2
 UseTab: ForContinuationAndIndentation
 
 # public, private, protected의 indent
-AccessModifierOffset: -4
+AccessModifierOffset: -2
 
 # 짧은 블록을 한 라인으로 정렬: Never, Empty, Always
 AllowShortBlocksOnASingleLine: Empty
@@ -48,7 +48,7 @@ BraceWrapping:
 BinPackParameters: false
 
 # 한 표현식이 여러 라인으로 나뉠 때 사용될 인덴트
-ContinuationIndentWidth: 8
+ContinuationIndentWidth: 4
 
 # 첫 라인 개행 허용
 KeepEmptyLinesAtTheStartOfBlocks: false
