@@ -1,4 +1,19 @@
-int main()
+int main(int ac, char **av)
 {
-	int i;
+	if (ac > 2)
+	{
+		usage(av[1]);
+		exit(1);
+	}
+
+	ServerManager manager(av[1]);
+	try
+	{
+		manager.initialize();
+		manager.loop();
+	}
+	catch (...)
+	{
+		//
+	}
 }
