@@ -1,6 +1,8 @@
 #include "Response.hpp"
 
+// FIX: 매크로는 최대한 제거
 #define SERVER_NAME "webserv"
+#define SERVER_PROTOCOL "HTTP/1.1"
 #define CRLF "\r\n"
 
 Response::statusInfoType Response::defaultInfo = initializeDefaultInfo();
@@ -25,7 +27,7 @@ Response &Response::operator=(const Response &rhs)
 		this->header = rhs.header;
 		this->body.str(rhs.body.str());
 		this->buffer = rhs.buffer;
-		this->sentBytes = rhs.sentBytes;
+		this->sentBytes = 0;
 		this->totalBytes = rhs.totalBytes;
 		this->isReady = rhs.isReady;
 	}
@@ -85,19 +87,25 @@ void Response::setBuffer()
 {
 	std::stringstream tmp;
 
-	tmp << "HTTP/1.1 " << statusCode << " " << getStatusInfo(statusCode) << CRLF;
+	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << getStatusInfo(this->statusCode)
+			<< CRLF;
 
-	for (headerType::const_iterator it = header.begin(), ite = header.end(); it != ite; ++it)
+	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
+			 ++it)
 	{
 		tmp << (*it).first << ": " << (*it).second << CRLF;
 	}
 	tmp << CRLF;
 
-	if (body.rdbuf()->in_avail())
-		tmp << body.rdbuf();
+	if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
+	{
+		if (this->body.rdbuf()->in_avail())
+			tmp << this->body.rdbuf();
+	}
 
-	buffer = tmp.str();
-	totalBytes = buffer.size();
+	this->buffer = tmp.str();
+	this->totalBytes = this->buffer.size();
+	this->isReady = true;
 }
 
 Response::statusInfoType Response::initializeDefaultInfo()
@@ -152,7 +160,9 @@ std::string Response::getStatusInfo(int code) const
 {
 	if (code < 100 || code >= 600)
 		return ("Undefined Status");
-	else if (defaultInfo.find(code) == defaultInfo.end())
-		return (this->defaultInfo[code / 100]);
+
+	if (this->defaultInfo.find(code) == this->defaultInfo.end())
+		code = (code / 100) * 100; // e.g. 2xx -> 200
+
 	return (this->defaultInfo[code]);
 }
