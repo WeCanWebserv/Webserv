@@ -26,6 +26,13 @@ public:
 	Response(const Response &other);
 	Response &operator=(const Response &rhs);
 	~Response();
+
+	bool ready() const;
+	bool done() const;
+
+	const char *getBuffer() const;
+	std::size_t getBufSize() const;
+	std::size_t moveBufPosition(int nbyte);
 };
 
 #endif // !RESPONSE_HPP
