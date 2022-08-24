@@ -46,6 +46,21 @@ bool Response::done() const
 	return (this->sentBytes == this->totalBytes);
 }
 
+void Response::clear()
+{
+	// FIX: 비용이 비싸지 않을까 우려됨
+	buffer.clear();
+	totalBytes = 0;
+	sentBytes = 0;
+
+	body.str("");
+
+	header.clear();
+	header["Server"] = SERVER_NAME;
+
+	isReady = false;
+}
+
 const char *Response::getBuffer() const
 {
 	return (this->buffer.c_str() + this->sentBytes);

@@ -29,6 +29,7 @@ public:
 
 	bool ready() const;
 	bool done() const;
+	void clear();
 
 	const char *getBuffer() const;
 	std::size_t getBufSize() const;
