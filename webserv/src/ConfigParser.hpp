@@ -1,4 +1,5 @@
-#include <sstream>
+#ifndef CONFIGPARSER_HPP
+#define CONFIGPARSER_HPP
 
 #include "ConfigInfo.hpp"
 
@@ -20,3 +21,5 @@ public:
 		return false;
 	}
 };
+
+#endif // CONFIGPARSER_HPP

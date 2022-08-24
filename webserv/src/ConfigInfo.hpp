@@ -1,3 +1,6 @@
+#ifndef CONFIGINFO_HPP
+#define CONFIGINFO_HPP
+
 #include <map>
 #include <string>
 #include <vector>
@@ -14,6 +17,7 @@ private:
 	int status;                                // END, BAD ... operator ! 연산 구현
 
 public:
+	ConfigInfo() {}
 	int getHost() const
 	{
 		return this->host;
@@ -23,3 +27,5 @@ public:
 		return this->ports;
 	}
 };
+
+#endif // CONFIGINFO_HPP

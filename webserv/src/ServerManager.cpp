@@ -15,6 +15,7 @@
 
 #include "ConfigInfo.hpp"
 #include "ConfigParser.hpp"
+#include "Connection.hpp"
 
 ServerManager::ServerManager(const char *path)
 {
@@ -85,7 +86,7 @@ ServerManager::~ServerManager()
 		close(servIter->first);
 	}
 	for (connection_container_type::iterator connIter = this->connections.begin();
-			 connIter != this->connection.end(); connIter++)
+			 connIter != this->connections.end(); connIter++)
 	{
 		close(connIter->first);
 	}
@@ -137,7 +138,7 @@ void ServerManager::loop()
 						// Response &response = connection.getResponse();
 						// response.populate(request);
 						currentEvent.events |= EPOLLOUT;
-						epoll_ctl(this->epollFd, EPOLL_CTL_MOD, eventFd, &currentEvent)
+						epoll_ctl(this->epollFd, EPOLL_CTL_MOD, eventFd, &currentEvent);
 					}
 					else
 					{
@@ -206,9 +207,9 @@ void ServerManager::connect(int serverFd)
 {
 	struct sockaddr_in clientAddr;
 	int clientLength = sizeof(clientAddr);
-	int clientFd =
-			accept(serverFd, (struct sockaddr *)&clientAddr,
-						 (socklen_t *)&client_len) if (clientFd == -1) throw std::runtime_error("accept");
+	int clientFd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
+	if (clientFd == -1)
+		throw std::runtime_error("accept");
 
 	Connection newConnection(serverFd);
 	connections.insert(std::make_pair(clientFd, newConnection));
