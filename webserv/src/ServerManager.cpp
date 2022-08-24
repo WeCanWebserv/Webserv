@@ -121,24 +121,27 @@ void ServerManager::loop()
 					Connection &connection = found->second;
 					int occurredEvent = events[idx].events;
 					if (occurredEvent & EPOLLERR || occurredEvent & EPOLLHUP)
-					{
 						this->disconnect(eventFd);
-					}
 					else if (occurredEvent & EPOLLIN)
 					{
 						if (this->receive(eventFd) == -1)
-							throw std::runtime_error("recv");
-
-						Request &request = connection.getRequest();
-						if (!request.ready())
-							continue;
-						// TODO: Request Buffer Handling @jungwkim
-						// ...
-						// example:
-						// Response &response = connection.getResponse();
-						// response.populate(request);
-						currentEvent.events |= EPOLLOUT;
-						epoll_ctl(this->epollFd, EPOLL_CTL_MOD, eventFd, &currentEvent);
+							this->disconnect(eventFd);
+						else
+						{
+							Request &request = connection.getRequest();
+							if (!request.ready())
+							{
+								// TODO: Request Buffer Handling @jungwkim
+								// ...
+							}
+							else
+							{
+								// example:
+								// Response &response = connection.getResponse();
+								// response.populate(request);
+								this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT);
+							}
+						}
 					}
 					else
 					{
@@ -146,14 +149,14 @@ void ServerManager::loop()
 						if (!response.ready())
 						{
 							// TODO: Response FILE I/O, PIPE I/O Handling @seushin
+							continue;
 						}
+						if (this->send(eventFd) == -1)
+							this->disconnect(eventFd);
+						else if (!response.done())
+							continue;
 						else
 						{
-							if (this->send(eventFd) == -1)
-								throw std::runtime_error("send");
-
-							if (!response.sentAll())
-								continue;
 							// if (response.keepAlive())
 							// {
 							//    if (modifyEvent(eventFd, currentEvent, EPOLLIN) == -1)
@@ -244,7 +247,7 @@ int ServerManager::send(int fd)
 	Response &response = connections[fd].getResponse();
 	char *buffer = this->buffer; // TODO: response.?()
 	int nbytes = ::send(fd, buffer, BUFFER_SIZE, 0);
-	if (nbytes == 0)
+	if (nbytes == -1)
 		return -1;
 	else
 	{
