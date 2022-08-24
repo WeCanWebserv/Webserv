@@ -19,21 +19,6 @@ Response::Response(const Response &other)
 			buffer(other.buffer), sentBytes(0), totalBytes(other.totalBytes), isReady(other.isReady)
 {}
 
-Response &Response::operator=(const Response &rhs)
-{
-	if (this != &rhs)
-	{
-		this->statusCode = rhs.statusCode;
-		this->header = rhs.header;
-		this->body.str(rhs.body.str());
-		this->buffer = rhs.buffer;
-		this->sentBytes = 0;
-		this->totalBytes = rhs.totalBytes;
-		this->isReady = rhs.isReady;
-	}
-	return (*this);
-}
-
 Response::~Response() {}
 
 bool Response::ready() const

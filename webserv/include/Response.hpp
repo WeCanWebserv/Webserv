@@ -24,7 +24,6 @@ private:
 public:
 	Response();
 	Response(const Response &other);
-	Response &operator=(const Response &rhs);
 	~Response();
 
 	bool ready() const;
@@ -41,6 +40,8 @@ public:
 	void setBuffer();
 
 private:
+	Response &operator=(const Response &rhs);
+
 	static statusInfoType initializeDefaultInfo();
 	std::string getStatusInfo(int code) const;
 };
