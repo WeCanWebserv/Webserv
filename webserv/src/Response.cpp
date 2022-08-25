@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include <fcntl.h>
 
 // FIX: 매크로는 최대한 제거
 #define SERVER_NAME "webserv"
@@ -66,6 +67,62 @@ std::size_t Response::moveBufPosition(int nbyte)
 			this->sentBytes += nbyte;
 	}
 	return (getBufSize());
+}
+
+template<class Request, class ConfigInfo>
+int Response::setRequest(Request &req, ConfigInfo config)
+{
+	Uri uri(req.uri);
+	std::string targetPath;
+	std::string loc;
+	typename ConfigInfo::locationType *location;
+
+	loc = findLocation(uri, config.location);
+	location = &config.location[loc];
+	if (location == NULL)
+		return (setError(404, config));
+	if (location->allowMethod.find(req.method) == location->allowMethod.end())
+		return (setError(405, config));
+
+	if (location->cgis.find(uri.extension) != location->cgis.end())
+		return (setError(501, config, true)); // cgi.
+
+	if (uri.isDirectory)
+		return (setError(501, config, true)); // find indexFile or directory listing.
+
+	targetPath = uri.path.replace(0, loc.size(), location->root);
+
+	this->body.clear();
+	this->body.fd = open(targetPath.c_str(), O_RDONLY);
+	if (this->body.fd == -1)
+		return (-1);
+	return (0);
+}
+
+template<class ConfigInfo>
+int Response::setError(int code, ConfigInfo config, bool close)
+{
+	std::string errorPage;
+
+	clear();
+
+	this->statusCode = code;
+	if (close)
+	{
+		this->isClose = close;
+		setHeader("Connection", "close");
+	}
+
+	if (config.errorPages.find(code) != config.errorPages.end())
+		errorPage = config.errorPages[code];
+	else
+		errorPage = getDefaultErrorPage(code);
+
+	// open errorPage
+	this->body.fd = open(errorPage.c_str(), O_RDONLY);
+	if (this->body.fd == -1)
+		return (-1);
+	return (0);
 }
 
 std::stringstream &Response::getBodyStream()

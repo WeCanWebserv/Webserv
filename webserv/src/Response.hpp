@@ -87,6 +87,11 @@ public:
 	std::size_t getBufSize() const;
 	std::size_t moveBufPosition(int nbyte);
 
+	template<class Request, class ConfigInfo>
+	int setRequest(Request &req, ConfigInfo config);
+	template<class ConfigInfo>
+	int setError(int code, ConfigInfo config, bool close = false);
+
 	std::stringstream &getBodyStream();
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);
