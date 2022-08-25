@@ -15,8 +15,8 @@ Response::Response() : statusCode(200), sentBytes(0), totalBytes(0), isReady(fal
 }
 
 Response::Response(const Response &other)
-		: statusCode(other.statusCode), header(other.header), body(other.body.str()),
-			buffer(other.buffer), sentBytes(0), totalBytes(other.totalBytes), isReady(other.isReady)
+		: statusCode(other.statusCode), header(other.header), body(), buffer(other.buffer),
+			sentBytes(0), totalBytes(other.totalBytes), isReady(other.isReady)
 {}
 
 Response::~Response() {}
@@ -38,7 +38,7 @@ void Response::clear()
 	totalBytes = 0;
 	sentBytes = 0;
 
-	body.str("");
+	body.clear();
 
 	header.clear();
 	header["Server"] = SERVER_NAME;
@@ -70,7 +70,7 @@ std::size_t Response::moveBufPosition(int nbyte)
 
 std::stringstream &Response::getBodyStream()
 {
-	return (this->body);
+	return (this->body.buffer);
 }
 
 void Response::setStatusCode(int code)
@@ -99,8 +99,8 @@ void Response::setBuffer()
 
 	if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
 	{
-		if (this->body.rdbuf()->in_avail())
-			tmp << this->body.rdbuf();
+		if (this->body.buffer.rdbuf()->in_avail())
+			tmp << this->body.buffer.rdbuf();
 	}
 
 	this->buffer = tmp.str();
