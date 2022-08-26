@@ -42,12 +42,11 @@ bool Response::ready() const
 
 bool Response::done() const
 {
-	return (this->sentBytes == this->totalBytes);
+	return (ready() && this->sentBytes == this->totalBytes);
 }
 
 void Response::clear()
 {
-	// FIX: 비용이 비싸지 않을까 우려됨
 	buffer.clear();
 	totalBytes = 0;
 	sentBytes = 0;
@@ -83,7 +82,7 @@ std::size_t Response::moveBufPosition(int nbyte)
 }
 
 template<class Request, class ConfigInfo>
-int Response::setRequest(Request &req, ConfigInfo config)
+void Response::setRequest(Request &req, ConfigInfo config)
 {
 	Uri uri;
 	std::string targetPath;
@@ -95,33 +94,33 @@ int Response::setRequest(Request &req, ConfigInfo config)
 	loc = findLocation(uri, config.location);
 	location = &config.location[loc];
 	if (location == NULL)
-		return (setError(404, config));
+		throw (404);
 	if (location->allowMethod.find(req.method) == location->allowMethod.end())
-		return (setError(405, config));
+		throw (405);
 
 	if (location->cgis.find(uri.extension) != location->cgis.end())
-		return (setError(501, config, true)); // cgi.
+		throw (501); // cgi.
 
 	if (uri.isDirectory)
-		return (setError(501, config, true)); // find indexFile or directory listing.
+		throw (501); // find indexFile or directory listing.
 
-	targetPath = uri.path.replace(0, loc.size(), location->root);
+	targetPath = uri.path;
+	targetPath = targetPath.replace(0, loc.size(), location->root);
 
-	clearBody(this->body);
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
-		return (setError(404, config));
-	return (0);
+		throw (404);
 }
 
 template<class ConfigInfo>
-int Response::setError(int code, ConfigInfo config, bool close)
+void Response::setError(int code, ConfigInfo config, bool close)
 {
 	std::string errorPage;
 
 	clear();
 
 	this->statusCode = code;
+
 	if (close)
 	{
 		this->isClose = close;
@@ -133,21 +132,20 @@ int Response::setError(int code, ConfigInfo config, bool close)
 		errorPage = config.errorPages[code];
 		this->body.fd = open(errorPage.c_str(), O_RDONLY);
 		if (this->body.fd == -1)
-			setDefaultErrorPage(code);
+			setBodyToDefaultErrorPage(code);
 	}
 	else
-		setDefaultErrorPage(code);
-	return (0);
+		setBodyToDefaultErrorPage(code);
 }
 
-void Response::setDefaultErrorPage(int code)
+void Response::setBodyToDefaultErrorPage(int code)
 {
 	std::string errorPage;
 
 	errorPage = generateDefaultErrorPage(code);
 	this->body.buffer << errorPage;
-	this->body.readSize = errorPage.size();
-	setHeader("Content-Length", ft::toString(this->body.readSize));
+	this->body.size = errorPage.size();
+	setHeader("Content-Length", ft::toString(this->body.size));
 	setHeader("Content-Type", "text/html");
 	setBuffer();
 }
@@ -183,7 +181,7 @@ int Response::readBody()
 		return (-1);
 	else if (n == 0)
 	{
-		setHeader("Content-Length", ft::toString(this->body.readSize));
+		setHeader("Content-Length", ft::toString(this->body.size));
 		// FIX: {extension: media-type} 의 형태로 지원하는 타입 정의하기
 		setHeader("Content-Type", "text/html");
 		setBuffer();
@@ -191,13 +189,8 @@ int Response::readBody()
 	}
 	buf[n] = '\0';
 	this->body.buffer << buf;
-	this->body.readSize += n;
+	this->body.size += n;
 	return (1);
-}
-
-std::stringstream &Response::getBodyStream()
-{
-	return (this->body.buffer);
 }
 
 void Response::setStatusCode(int code)
@@ -303,8 +296,9 @@ Response::Uri Response::createUri(const std::string &originUri)
 	{
 		uri.originUri = originUri;
 
+ 		// if absolute-uri
 		pos = originUri.find("://");
-		if (originUri[0] != '/' && pos != std::string::npos) // absolute-uri
+		if (originUri[0] != '/' && pos != std::string::npos)
 		{
 			pos = originUri.find('/', pos + 1);
 			uri.path = pos == std::string::npos ? "/" : originUri.substr(pos);
@@ -315,6 +309,7 @@ Response::Uri Response::createUri(const std::string &originUri)
 			uri.path = pos == std::string::npos ? "/" : originUri.substr(pos);
 		}
 
+		// if has query
 		pos = uri.path.find("?");
 		if (pos != std::string::npos)
 		{
@@ -322,6 +317,7 @@ Response::Uri Response::createUri(const std::string &originUri)
 			uri.path = uri.path.substr(0, pos);
 		}
 
+		// if has extension
 		pos = uri.path.rfind(".");
 		if (pos != std::string::npos)
 		{
@@ -334,7 +330,6 @@ Response::Uri Response::createUri(const std::string &originUri)
 void Response::clearBody(Body &targetBody)
 {
 	targetBody.fd = -1;
-	targetBody.isEOF = false;
-	targetBody.readSize = 0;
+	targetBody.size = 0;
 	targetBody.buffer.str("");
 }

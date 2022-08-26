@@ -23,8 +23,7 @@ public:
 	struct Body
 	{
 		int fd;
-		bool isEOF;
-		std::size_t readSize;
+		std::size_t size;
 		std::stringstream buffer;
 	};
 
@@ -53,16 +52,11 @@ public:
 	std::size_t moveBufPosition(int nbyte);
 
 	template<class Request, class ConfigInfo>
-	int setRequest(Request &req, ConfigInfo config);
+	void setRequest(Request &req, ConfigInfo config);
 	template<class ConfigInfo>
-	int setError(int code, ConfigInfo config, bool close = false);
+	void setError(int code, ConfigInfo config, bool close = false);
 
 	int readBody();
-
-	std::stringstream &getBodyStream();
-	void setStatusCode(int code);
-	void setHeader(std::string name, std::string value);
-	void setBuffer();
 
 private:
 	Response &operator=(const Response &rhs);
@@ -70,11 +64,15 @@ private:
 	static statusInfoType initializeDefaultInfo();
 	std::string getStatusInfo(int code) const;
 
+	void setStatusCode(int code);
+	void setHeader(std::string name, std::string value);
+	void setBuffer();
+
+	void setBodyToDefaultErrorPage(int code);
+	std::string generateDefaultErrorPage(int code);
+
 	Uri createUri(const std::string &uri);
 	void clearBody(Body &body);
-
-	void setDefaultErrorPage(int code);
-	std::string generateDefaultErrorPage(int code);
 };
 
 #endif // !RESPONSE_HPP
