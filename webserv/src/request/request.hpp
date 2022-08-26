@@ -31,6 +31,7 @@ private:
 	ParseStage parseStage;
 	std::stringstream buf; // for startline and header
 	size_t requestMessageSize;
+	std::map<std::string, std::string> headerbuf;
 
 public:
 	Request();

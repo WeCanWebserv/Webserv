@@ -59,14 +59,17 @@ int Request::fillBuffer(char *octets, size_t inputLength)
 				RequestParser::startlineParser(startline, line);
 				setParseStage(STAGE_HEADER);
 				break;
-				// case STAGE_HEADER:
-				// 	RequestParser::headerParser(header, line);
-				// 	if (detectSectionDelimiter(line))
-				// 		setParseStage(STAGE_BODY); // TODO: body로 가거나 끝나거나 check
-				// 	break;
+			case STAGE_HEADER:
+				if (!detectSectionDelimiter(line))
+					RequestParser::fillHeaderBuffer(headerbuf, line);
+				else
+				{
+					RequestParser::headerParser(header, headerbuf);
+					setParseStage(STAGE_BODY); // TODO: body로 가거나 끝나거나 check
+				}
+				break;
 			default:
 				break;
-
 				// 	break;
 				// case STAGE_ERROR:
 				// 	break;
@@ -74,6 +77,8 @@ int Request::fillBuffer(char *octets, size_t inputLength)
 				// 	break;
 			}
 		}
+		if (this->buf.eof())
+			doRequestEpilogue(line);
 	}
 	catch (int code)
 	{
