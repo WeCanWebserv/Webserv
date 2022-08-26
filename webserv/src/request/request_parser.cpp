@@ -8,51 +8,45 @@
 
 #include <iostream> // TODO: 지우기(디버깅용)
 
+std::vector<std::string> RequestParser::methodTokenSet = RequestParser::initMethodTokenSet();
+// std::vector<std::string> RequestParser::headerTokenSet = RequestParser::initHeaderTokenSet();
+
 void RequestParser::startlineParser(Startline &startline, const std::string &line)
 {
-	// getline -> delimiter: sp
-	std::stringstream ss;
-	std::string token;
-	char delimiter;
+	std::vector<std::string> startlineTokenSet;
+	const char *delimiter = " ";
 
-	ss << line;
-	delimiter = ' ';
-	token = "";
-	std::getline(ss, token, delimiter);
-	RequestParser::startlineMethodParser(startline.method, token);
-	token = "";
-	std::getline(ss, token, delimiter);
-	RequestParser::startlineURIParser(startline.uri, token, startline.method);
-	token = "";
-	std::getline(ss, token, delimiter);
-	RequestParser::startlineHTTPVersionParser(startline.httpVersion, token);
+	startlineTokenSet = RequestParser::splitStr(line, delimiter);
+
+	if (startlineTokenSet.size() > 3)
+		throw(400);
+	RequestParser::startlineMethodParser(startline.method, startlineTokenSet[0]);
+	RequestParser::startlineURIParser(startline.uri, startlineTokenSet[1], startline.method);
+	RequestParser::startlineHTTPVersionParser(startline.httpVersion, startlineTokenSet[2]);
+
 	std::cout << "[startline]\n";
 	std::cout << "startline method: " << startline.method << std::endl;
 	std::cout << "startline URI: " << startline.uri << std::endl;
 	std::cout << "startline HTTPversion: " << startline.httpVersion << std::endl;
 }
 
+void RequestParser::headerParser(Header &header, const std::string &line)
+{
+	/**
+	 * header field에 대한 token부터 만들어두고 parsing하자.
+	 */
+}
+
 void RequestParser::startlineMethodParser(std::string &method, const std::string &token)
 {
-	std::vector<std::string> methodTokenSet;
 	size_t idx;
 
 	/**
 	 *  case-sensitive로 확인해야 한다.
 	 */
-	methodTokenSet.push_back("GET");
-	methodTokenSet.push_back("POST");
-	methodTokenSet.push_back("DELETE");
-	methodTokenSet.push_back("HEAD");
-	methodTokenSet.push_back("PUT");
-	methodTokenSet.push_back("PATCH");
-	methodTokenSet.push_back("OPTIONS");
-	methodTokenSet.push_back("CONNECT");
-	methodTokenSet.push_back("TRACE");
-
-	if ((idx = findToken(token, methodTokenSet) < 0))
+	if ((idx = findToken(token, RequestParser::methodTokenSet) < 0))
 		throw(400);
-	method = methodTokenSet[idx];
+	method = RequestParser::methodTokenSet[idx];
 }
 
 void RequestParser::startlineURIParser(std::string &uri,
@@ -256,4 +250,41 @@ size_t RequestParser::findToken(const std::string &token, const std::vector<std:
 		}
 	}
 	return -1;
+}
+
+std::vector<std::string> RequestParser::splitStr(const std::string &str, const char *delimiter)
+{
+	std::vector<std::string> tokenset;
+	char *token;
+
+	token = strtok(const_cast<char *>(str.c_str()), delimiter);
+	while (token)
+	{
+		tokenset.push_back(token);
+		token = strtok(NULL, delimiter);
+	}
+	return tokenset;
+}
+
+// std::vector<std::string> RequestParser::initHeaderTokenSet(void)
+// {
+// 	std::vector<std::string> tokenset;
+
+// 	// tokenset.push_back()
+// }
+
+std::vector<std::string> RequestParser::initMethodTokenSet(void)
+{
+	std::vector<std::string> tokenset;
+
+	tokenset.push_back("GET");
+	tokenset.push_back("POST");
+	tokenset.push_back("DELETE");
+	tokenset.push_back("HEAD");
+	tokenset.push_back("PUT");
+	tokenset.push_back("PATCH");
+	tokenset.push_back("OPTIONS");
+	tokenset.push_back("CONNECT");
+	tokenset.push_back("TRACE");
+	return tokenset;
 }
