@@ -18,34 +18,6 @@ public:
 		std::string query;
 		std::string extension;
 		bool isDirectory;
-
-		Uri(std::string uri)
-		{
-			std::string::size_type pos;
-
-			this->originUri = uri;
-			pos = uri.find("://");
-			if (!isPrefixWith(uri, "/") && pos != std::string::npos)
-			{
-				pos = uri.find('/', pos + 1);
-				path = pos == std::string::npos ? "/" : uri.substr(pos);
-			}
-			else
-				path = uri;
-
-			pos = path.find("?");
-			if (pos != std::string::npos)
-			{
-				query = path.substr(pos + 1);
-				path = path.substr(0, pos);
-			}
-
-			pos = path.rfind(".");
-			if (pos != std::string::npos)
-			{
-				extension = path.substr(pos);
-			}
-		}
 	};
 
 	struct Body
@@ -54,14 +26,6 @@ public:
 		bool isEOF;
 		std::size_t readSize;
 		std::stringstream buffer;
-
-		void clear()
-		{
-			this->fd = -1;
-			this->isEOF = false;
-			readSize = 0;
-			buffer.str("");
-		}
 	};
 
 private:
@@ -73,6 +37,7 @@ private:
 	std::size_t sentBytes;
 	std::size_t totalBytes;
 	bool isReady;
+	bool isClose;
 
 public:
 	Response();
@@ -102,6 +67,8 @@ private:
 
 	static statusInfoType initializeDefaultInfo();
 	std::string getStatusInfo(int code) const;
+	Uri createUri(const std::string &uri);
+	void clearBody(Body &body);
 };
 
 #endif // !RESPONSE_HPP

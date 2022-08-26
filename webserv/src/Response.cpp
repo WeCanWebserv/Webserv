@@ -39,7 +39,7 @@ void Response::clear()
 	totalBytes = 0;
 	sentBytes = 0;
 
-	body.clear();
+	clearBody(this->body);
 
 	header.clear();
 	header["Server"] = SERVER_NAME;
@@ -72,11 +72,13 @@ std::size_t Response::moveBufPosition(int nbyte)
 template<class Request, class ConfigInfo>
 int Response::setRequest(Request &req, ConfigInfo config)
 {
-	Uri uri(req.uri);
+	Uri uri;
 	std::string targetPath;
 	std::string loc;
 	typename ConfigInfo::locationType *location;
 
+	uri = createUri(req.uri);
+	// TODO
 	loc = findLocation(uri, config.location);
 	location = &config.location[loc];
 	if (location == NULL)
@@ -92,7 +94,7 @@ int Response::setRequest(Request &req, ConfigInfo config)
 
 	targetPath = uri.path.replace(0, loc.size(), location->root);
 
-	this->body.clear();
+	clearBody(this->body);
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
 		return (-1);
@@ -116,6 +118,7 @@ int Response::setError(int code, ConfigInfo config, bool close)
 	if (config.errorPages.find(code) != config.errorPages.end())
 		errorPage = config.errorPages[code];
 	else
+		// TODO
 		errorPage = getDefaultErrorPage(code);
 
 	// open errorPage
@@ -222,4 +225,49 @@ std::string Response::getStatusInfo(int code) const
 		code = (code / 100) * 100; // e.g. 2xx -> 200
 
 	return (this->defaultInfo[code]);
+}
+
+Response::Uri Response::createUri(const std::string &originUri)
+{
+	Uri uri;
+	std::string::size_type pos;
+
+	if (originUri.size() > 0)
+	{
+		uri.originUri = originUri;
+
+		pos = originUri.find("://");
+		if (originUri[0] != '/' && pos != std::string::npos) // absolute-uri
+		{
+			pos = originUri.find('/', pos + 1);
+			uri.path = pos == std::string::npos ? "/" : originUri.substr(pos);
+		}
+		else
+		{
+			pos = originUri.find_first_not_of(".");
+			uri.path = pos == std::string::npos ? "/" : originUri.substr(pos);
+		}
+
+		pos = uri.path.find("?");
+		if (pos != std::string::npos)
+		{
+			uri.query = uri.path.substr(pos + 1);
+			uri.path = uri.path.substr(0, pos);
+		}
+
+		pos = uri.path.rfind(".");
+		if (pos != std::string::npos)
+		{
+			uri.extension = uri.path.substr(pos);
+		}
+	}
+	return (uri);
+}
+
+void Response::clearBody(Body &targetBody)
+{
+	targetBody.fd = -1;
+	targetBody.isEOF = false;
+	targetBody.readSize = 0;
+	targetBody.buffer.str("");
 }
