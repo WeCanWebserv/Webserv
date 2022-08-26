@@ -6,6 +6,18 @@
 #define SERVER_PROTOCOL "HTTP/1.1"
 #define CRLF "\r\n"
 
+namespace ft
+{
+template<class T>
+std::string toString(T value)
+{
+	std::stringstream ss;
+
+	ss << value;
+	return (ss.str());
+}
+} // namespace ft
+
 Response::statusInfoType Response::defaultInfo = initializeDefaultInfo();
 
 Response::Response() : statusCode(200), sentBytes(0), totalBytes(0), isReady(false)
@@ -97,7 +109,7 @@ int Response::setRequest(Request &req, ConfigInfo config)
 	clearBody(this->body);
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
-		return (-1);
+		return (setError(404, config));
 	return (0);
 }
 
@@ -116,16 +128,45 @@ int Response::setError(int code, ConfigInfo config, bool close)
 	}
 
 	if (config.errorPages.find(code) != config.errorPages.end())
+	{
 		errorPage = config.errorPages[code];
+		this->body.fd = open(errorPage.c_str(), O_RDONLY);
+		if (this->body.fd == -1)
+			setDefaultErrorPage(code);
+	}
 	else
-		// TODO
-		errorPage = getDefaultErrorPage(code);
-
-	// open errorPage
-	this->body.fd = open(errorPage.c_str(), O_RDONLY);
-	if (this->body.fd == -1)
-		return (-1);
+		setDefaultErrorPage(code);
 	return (0);
+}
+
+void Response::setDefaultErrorPage(int code)
+{
+	std::string errorPage;
+
+	errorPage = generateDefaultErrorPage(code);
+	this->body.buffer << errorPage;
+	this->body.readSize = errorPage.size();
+	setHeader("Content-Length", ft::toString(this->body.readSize));
+	setHeader("Content-Type", "text/html");
+	setBuffer();
+}
+
+std::string Response::generateDefaultErrorPage(int code)
+{
+	std::stringstream html;
+	std::string errorMsg;
+
+	errorMsg = getStatusInfo(code);
+
+	html << "<html>";
+	html << "<head>"
+			 << "<title>" << errorMsg << "</title>"
+			 << "</head>";
+	html << "<body>"
+			 << "<h1>" << code << " " << errorMsg << "</h1>"
+			 << "</body>";
+	html << "</html>";
+	return (html.str());
 }
 
 std::stringstream &Response::getBodyStream()
@@ -251,7 +292,7 @@ Response::Uri Response::createUri(const std::string &originUri)
 		pos = uri.path.find("?");
 		if (pos != std::string::npos)
 		{
-			uri.query = uri.path.substr(pos + 1);
+			uri.query = uri.path.substr(pos + 1, uri.path.find("#", pos));
 			uri.path = uri.path.substr(0, pos);
 		}
 

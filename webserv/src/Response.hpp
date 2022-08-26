@@ -67,8 +67,12 @@ private:
 
 	static statusInfoType initializeDefaultInfo();
 	std::string getStatusInfo(int code) const;
+
 	Uri createUri(const std::string &uri);
 	void clearBody(Body &body);
+
+	void setDefaultErrorPage(int code);
+	std::string generateDefaultErrorPage(int code);
 };
 
 #endif // !RESPONSE_HPP
