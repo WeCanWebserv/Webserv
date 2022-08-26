@@ -1,5 +1,6 @@
 #include "Response.hpp"
 #include <fcntl.h>
+#include <unistd.h>
 
 // FIX: 매크로는 최대한 제거
 #define SERVER_NAME "webserv"
@@ -167,6 +168,31 @@ std::string Response::generateDefaultErrorPage(int code)
 			 << "</body>";
 	html << "</html>";
 	return (html.str());
+}
+
+int Response::readBody()
+{
+	const std::size_t bufSize = 4096 * 16;
+	char buf[bufSize];
+	int n;
+
+	if (this->body.fd == -1)
+		return (-1);
+	n = read(this->body.fd, buf, bufSize - 1);
+	if (n == -1)
+		return (-1);
+	else if (n == 0)
+	{
+		setHeader("Content-Length", ft::toString(this->body.readSize));
+		// FIX: {extension: media-type} 의 형태로 지원하는 타입 정의하기
+		setHeader("Content-Type", "text/html");
+		setBuffer();
+		return (0);
+	}
+	buf[n] = '\0';
+	this->body.buffer << buf;
+	this->body.readSize += n;
+	return (1);
 }
 
 std::stringstream &Response::getBodyStream()

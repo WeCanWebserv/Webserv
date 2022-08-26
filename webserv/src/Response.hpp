@@ -57,6 +57,8 @@ public:
 	template<class ConfigInfo>
 	int setError(int code, ConfigInfo config, bool close = false);
 
+	int readBody();
+
 	std::stringstream &getBodyStream();
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);
