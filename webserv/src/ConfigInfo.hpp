@@ -9,22 +9,28 @@
 
 class ConfigInfo
 {
-private:
-	int host;                                  // default: required
-	std::vector<int> ports;                    // default: required
+// private:
+public:
+	std::string serverName;
+	std::string host; // default: required
+	int port;
 	std::map<int, std::string> errorPages;     // defautl: empty
 	std::map<std::string, Location> locations; // required
 	int status;                                // END, BAD ... operator ! 연산 구현
 
 public:
 	ConfigInfo() {}
-	int getHost() const
+	std::string getHost() const
 	{
 		return this->host;
 	}
-	const std::vector<int> &getPorts() const
+	int getPort() const
 	{
-		return this->ports;
+		return this->port;
+	}
+	std::string &getServerName()
+	{
+		return this->serverName;
 	}
 };
 
