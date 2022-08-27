@@ -2,7 +2,7 @@
 
 #include <iostream> // TODO: 지우기
 
-Request::Request() : parseStage(STAGE_STARTLINE), requestMessageSize(0) {}
+Request::Request() : parseStage(STAGE_STARTLINE), requestMessageSize(0), headerbufSize(0) {}
 
 bool Request::detectSectionDelimiter(std::string &line)
 {
@@ -28,7 +28,12 @@ void Request::setParseStage(ParseStage stage)
 	this->parseStage = stage;
 }
 
-int Request::fillBuffer(char *octets, size_t inputLength)
+size_t Request::countParsedOctets(const std::string &line, const size_t &initialBufferLength)
+{
+	return (line.length() - initialBufferLength + 1); // 개행까지 세어야 하므로 +1을 해줌
+}
+
+int Request::fillBuffer(const char *octets, size_t inputLength)
 {
 	std::string line;
 	size_t parsedLength;
@@ -48,33 +53,31 @@ int Request::fillBuffer(char *octets, size_t inputLength)
 				doRequestEpilogue(line); // line이 덜 끝난 경우(= 개행 없이 끝난 경우)
 				break;
 			}
-			parsedLength += line.length() - initialLength + 1; // 개행까지 세어야 하므로 +1을 해줌
-			if (initialLength)
-				initialLength = 0;
+			parsedLength += countParsedOctets(line, initialLength);
+			initialLength = 0;
 			switch (this->parseStage)
 			{
 			case STAGE_STARTLINE:
-				if (detectSectionDelimiter(line)) // CRLF에 대해 trim을 한다.
-					continue;
-				RequestParser::startlineParser(startline, line);
-				setParseStage(STAGE_HEADER);
+				if (!detectSectionDelimiter(line)) // CRLF에 대해 trim을 한다.
+				{
+					RequestParser::startlineParser(startline, line);
+					setParseStage(STAGE_HEADER);
+				}
 				break;
 			case STAGE_HEADER:
 				if (!detectSectionDelimiter(line))
-					RequestParser::fillHeaderBuffer(headerbuf, line);
+				{
+					RequestParser::fillHeaderBuffer(headerbuf, line, headerbufSize);
+					headerbufSize += line.length() + 1;
+				}
 				else
 				{
-					RequestParser::headerParser(header, headerbuf);
+					RequestParser::headerParser(header, headerbuf, startline.method);
 					setParseStage(STAGE_BODY); // TODO: body로 가거나 끝나거나 check
 				}
 				break;
 			default:
 				break;
-				// 	break;
-				// case STAGE_ERROR:
-				// 	break;
-				// case STAGE_DONE:
-				// 	break;
 			}
 		}
 		if (this->buf.eof())

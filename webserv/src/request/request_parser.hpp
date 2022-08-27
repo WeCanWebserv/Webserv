@@ -11,12 +11,17 @@
 struct RequestParser
 {
 	static void startlineParser(Startline &startline, const std::string &str);
-	static void headerParser(Header &header, std::map<std::string, std::string> &headerbuf);
-	static void fillHeaderBuffer(std::map<std::string, std::string> &headerbuf, const std::string &str);
+	static void headerParser(Header &header, std::map<std::string, std::string> &headerbuf,
+													 const std::string &method);
+	static void fillHeaderBuffer(std::map<std::string, std::string> &headerbuf,
+															 const std::string &str,
+															 const size_t headerbufSize);
 	// static int bodyParser(Body &body, Header::HeaderMap headerMap, char *octets, size_t startPos, size_t octetSize);
 
 private:
 	static std::vector<std::string> methodTokenSet;
+	static const size_t maxHeaderSize = 8 * 1024;
+	static const size_t maxHeaderFieldSize = 30 * 1024;
 
 	static std::vector<std::string> initMethodTokenSet(void);
 	/**
@@ -25,12 +30,17 @@ private:
 	static void startlineMethodParser(std::string &method, const std::string &token);
 	static void startlineURIParser(std::string &uri, const std::string &token, const std::string &method);
 	static void startlineHTTPVersionParser(std::string &httpVersion, const std::string &token);
-	static bool validateHeaderValue(Header &header);
+	// static bool validateHeaderValue(Header &header);
 
 	/**
 	 * header parser util
 	 */
 	static bool checkHeaderFieldnameHasSpace(const std::string &fieldname);
+	static bool checkHeaderFieldContain(const std::map<std::string, std::string> &headerbuf,
+																			const std::string str);
+	static void headerValueParser(std::vector<FieldValue> &fieldvalue, const std::string &headerValue);
+	static void headerValueDescriptionParser(std::map<std::string, std::string> &descriptions,
+															std::vector<std::string> &descriptionsTokenSet);
 
 	// static int chunkedBodyParser(Body &body, char *octets, size_t startPos, size_t octetSize);
 	// static int nonChunkedBodyParser(Body &body, size_t contentLength, char *octets, size_t startPos, size_t octetSize);
@@ -46,6 +56,7 @@ private:
 	static size_t findToken(const std::string &token, const std::vector<std::string> &tokenset);
 	static std::vector<std::string> splitStr(const std::string &token, const char *delimiter);
 	static std::string &trimStr(std::string &target, const std::string &charset);
+	static std::string tolowerStr(const std::string &str);
 };
 
 #endif

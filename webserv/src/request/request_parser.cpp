@@ -140,28 +140,19 @@ void RequestParser::startlineHTTPVersionParser(std::string &httpVersion, const s
 	if (tokenset[0].compare("HTTP"))
 		throw(400);
 	versionTokenSet = RequestParser::splitStr(versionList, ", ");
-#if DEBUG
-	for (size_t i = 0; i < versionTokenSet.size(); i++)
-	{
-		std::cout << "version[" << i << "]: " << versionTokenSet[i] << std::endl;
-	}
-#endif
 	if ((idx = RequestParser::findToken(tokenset[1], versionTokenSet)) < 0)
 		throw(400);
 	httpVersion = std::string(tokenset[1]);
 }
 
 void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerbuf,
-																		 const std::string &line)
+																		 const std::string &line,
+																		 const size_t headerbufSize)
 {
 	std::vector<std::string> headerTokenSet;
 	std::vector<std::string> tmp;
 	std::string tmpstring;
 	/**
-	 * header field에 없는 token은 무시하도록 하자(error가 아님)
-	 * header-field는 오로지 US_ASCII로만 encoding되어야 한다.
-	 * header-value에 대한 format은 복잡하니 정리해놓은 것을 참고할 것.
-	 * 
 	 * 1. header 분리 (CRLF 기준으로 header각각을 분리)
 	 * 2. header field와 value를 분리
 	 * 3. field에 SP가 있으면 400 error (공격 방지를 위함)
@@ -170,25 +161,29 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	 * 
 	 * header section이 끝나면 headerParser메소드에서 로직 시작
 	 */
-
+	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
+		throw(431); // rfc6585.5
 	headerTokenSet = RequestParser::splitStr(line, "\r\n");
 	for (size_t i = 0; i < headerTokenSet.size(); i++)
 	{
 		tmp = RequestParser::splitStr(headerTokenSet[i], ":");
-		if (RequestParser::checkHeaderFieldnameHasSpace(tmp[0]))
+		if (tmp.size() < 2 || RequestParser::checkHeaderFieldnameHasSpace(tmp[0]))
 			throw(400);
-		if (headerbuf.find(tmp[0]) == headerbuf.end())
-		{
-			headerbuf[tmp[0]] = RequestParser::trimStr(tmp[1], " ");
-		}
-		else
+		if (tmp[0].length() > RequestParser::maxHeaderFieldSize)
+			throw(431);
+		tmp[0] = RequestParser::tolowerStr(tmp[0]);
+		if (RequestParser::checkHeaderFieldContain(headerbuf, tmp[0]))
 		{
 			tmpstring = RequestParser::trimStr(tmp[1], " ") + std::string(", ");
 			headerbuf[tmp[0]] = tmpstring + headerbuf[tmp[0]];
 		}
+		else
+		{
+			headerbuf[tmp[0]] = RequestParser::trimStr(tmp[1], " ");
+		}
 	}
 
-#if DEBUG
+#if DEBUG>2
 	std::map<std::string, std::string>::iterator it = headerbuf.begin();
 	std::map<std::string, std::string>::iterator end = headerbuf.end();
 	size_t idx = 0;
@@ -199,9 +194,15 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 #endif
 }
 
-void RequestParser::headerParser(Header &header, std::map<std::string, std::string> &headerbuf)
+void RequestParser::headerParser(Header &header,
+																 std::map<std::string, std::string> &headerbuf,
+																 const std::string &method)
 {
-/**
+	/**
+ 	 * header field에 없는 token은 무시하도록 하자(error가 아님)
+	 * header-field는 오로지 US_ASCII로만 encoding되어야 한다.
+	 * header-value에 대한 format은 복잡하니 정리해놓은 것을 참고할 것.
+	 * 
 	 * 6. header section이 모두 끝나면 predefined field name에 맞지 않는 것은 누락시키고 Header 구조에 맞춰 넣는다.
 	 * 7. 그리고 field value에 대해 validation을 진행한다.
 	 * 8. invalid format이라면 해당 이유에 맞춰 status code를 throw한다.
@@ -210,11 +211,98 @@ void RequestParser::headerParser(Header &header, std::map<std::string, std::stri
 #if DEBUG
 	std::cout << "header section is done\n";
 #endif
+	// check host is defined
+	std::vector<FieldValue> fieldvalueVec;
+
+	if (!RequestParser::checkHeaderFieldContain(headerbuf, "Host"))
+		throw(400);
+	if (RequestParser::checkHeaderFieldContain(headerbuf, "Content-Length") &&
+			RequestParser::checkHeaderFieldContain(headerbuf, "Transfer-Encoding") &&
+			headerbuf["Transfer-Encoding"] == "chunked")
+	{
+		if (method == "GET" || method == "POST")
+			headerbuf.erase("Content-Length");
+		else
+			throw(400);
+	}
+	else if (!RequestParser::checkHeaderFieldContain(headerbuf, "Content-Length") &&
+					 !(RequestParser::checkHeaderFieldContain(headerbuf, "Transfer-Encoding") &&
+						 headerbuf["Transfer-Encoding"] == "chunked"))
+	{
+		throw(411); // length required error
+	}
+	for (std::map<std::string, std::string>::const_iterator it = headerbuf.begin();
+			 it != headerbuf.end(); it++)
+	{
+		RequestParser::headerValueParser(fieldvalueVec, it->second);
+		header.headerMap[RequestParser::tolowerStr(it->first)] = fieldvalueVec;
+		fieldvalueVec.clear();
+	}
+#if DEBUG
+	header.print();
+#endif
+}
+
+void RequestParser::headerValueParser(std::vector<FieldValue> &fieldvalueVec,
+																			const std::string &headerValue)
+{
+	std::vector<std::string> valueTokenSet;
+	std::vector<std::string> descriptionTokenSet;
+	FieldValue fieldvalue;
+
+	valueTokenSet = splitStr(headerValue, ",");
+	for (size_t i = 0; i < valueTokenSet.size(); i++)
+	{
+		descriptionTokenSet =
+				RequestParser::splitStr(RequestParser::trimStr(valueTokenSet[i], " "), ";");
+		if (descriptionTokenSet.size() < 1)
+			continue;
+		fieldvalue.value = descriptionTokenSet[0];
+		descriptionTokenSet.erase(descriptionTokenSet.begin());
+		RequestParser::headerValueDescriptionParser(fieldvalue.descriptions, descriptionTokenSet);
+		fieldvalueVec.push_back(fieldvalue);
+		fieldvalue = FieldValue();
+	}
+}
+
+void RequestParser::headerValueDescriptionParser(std::map<std::string, std::string> &descriptions,
+																								 std::vector<std::string> &descriptionTokenSet)
+{
+	std::vector<std::string> pairTokenSet;
+	std::string tmp;
+	const std::string blank = "";
+
+	for (size_t i = 0; i < descriptionTokenSet.size(); i++)
+	{
+		pairTokenSet =
+				RequestParser::splitStr(RequestParser::trimStr(descriptionTokenSet[i], " "), "=");
+		if (pairTokenSet.size() < 1)
+			continue;
+		if (pairTokenSet.size() < 2)
+		{
+			descriptions.insert(std::make_pair(pairTokenSet[0], blank));
+		}
+		else if (pairTokenSet.size() == 2)
+			descriptions.insert(std::make_pair(pairTokenSet[0], pairTokenSet[1]));
+		else
+		{
+			for (size_t j = 1; j < pairTokenSet.size(); j++)
+				tmp = tmp + pairTokenSet[i];
+			descriptions.insert(std::make_pair(pairTokenSet[0], tmp));
+			tmp = "";
+		}
+	}
 }
 
 bool RequestParser::checkHeaderFieldnameHasSpace(const std::string &fieldname)
 {
 	return (fieldname.find(' ') != std::string::npos);
+}
+
+bool RequestParser::checkHeaderFieldContain(const std::map<std::string, std::string> &headerbuf,
+																						const std::string fieldname)
+{
+	return (headerbuf.count(RequestParser::tolowerStr(fieldname)) > 0);
 }
 
 // int RequestParser::bodyParser(
@@ -325,6 +413,7 @@ std::vector<std::string> RequestParser::splitStr(const std::string &str, const c
 	return tokenset;
 }
 
+// TODO: 입력 변경을 없애자(입력을 변경하는 대신 새로운 변수를 만들어 반환하자)
 std::string &RequestParser::trimStr(std::string &target, const std::string &charset)
 {
 	size_t idx;
@@ -351,6 +440,15 @@ std::string &RequestParser::trimStr(std::string &target, const std::string &char
 	return target;
 }
 
+std::string RequestParser::tolowerStr(const std::string &str)
+{
+	std::string copystr;
+
+	copystr = str;
+	std::transform(copystr.begin(), copystr.end(), copystr.begin(), ::tolower);
+	return copystr;
+}
+
 std::vector<std::string> RequestParser::initMethodTokenSet(void)
 {
 	std::vector<std::string> tokenset;
@@ -366,71 +464,3 @@ std::vector<std::string> RequestParser::initMethodTokenSet(void)
 	tokenset.push_back("TRACE");
 	return tokenset;
 }
-
-/**
- * @deprecated
- */
-// std::set<std::string> RequestParser::initHeaderTokenSet(void)
-// {
-// 	std::vector<std::string> tokenvec;
-
-// 	/**
-// 	 * Representation
-// 	 */
-// 	tokenvec.push_back("Content-Type");
-// 	tokenvec.push_back("Content-Encoding");
-// 	tokenvec.push_back("Content-Language");
-// 	tokenvec.push_back("Content-Length");
-
-// 	/**
-// 	 * Negotiation
-// 	 */
-// 	tokenvec.push_back("Accept");
-// 	tokenvec.push_back("Accept-Charset");
-// 	tokenvec.push_back("Accept-Encoding");
-// 	tokenvec.push_back("Accept-Language");
-
-// 	/**
-// 	 * Transfer
-// 	 */
-// 	tokenvec.push_back("Transfer-Encoding");
-// 	tokenvec.push_back("Content-Range");
-// 	tokenvec.push_back("Range");
-// 	tokenvec.push_back("If-Range");
-
-// 	/**
-// 	 * General information
-// 	 */
-// 	tokenvec.push_back("From");
-// 	tokenvec.push_back("Referer");
-// 	tokenvec.push_back("User-Agent");
-// 	tokenvec.push_back("Date");
-
-// 	/**
-// 	 * Special information
-// 	 */
-// 	tokenvec.push_back("Host");
-// 	tokenvec.push_back("Authorization");
-// 	tokenvec.push_back("Origin");
-// 	tokenvec.push_back("Cookie");
-// 	tokenvec.push_back("Connection");
-
-// 	/**
-// 	 * Cache
-// 	 */
-// 	tokenvec.push_back("Cache-Control");
-// 	tokenvec.push_back("If-Modified-Since");
-// 	tokenvec.push_back("If-Unmodified-Since");
-// 	tokenvec.push_back("If-None-Match");
-// 	tokenvec.push_back("If-Match");
-
-// 	std::vector<std::string>::iterator end = tokenvec.end();
-// 	for (size_t i = 0; i < tokenvec.size(); i++)
-// 		std::transform(tokenvec[i].begin(), tokenvec[i].end(), tokenvec[i].begin(), ::tolower);
-// #if DEBUG
-// 	std::cout << "[ All Header Field ]\n\n";
-// 	for (size_t i = 0; i < tokenvec.size(); i++)
-// 		std::cout << "Header[" << i << "] : " << tokenvec[i] << std::endl;
-// #endif
-// 	return std::set<std::string>(tokenvec.begin(), tokenvec.end());
-// }

@@ -32,11 +32,12 @@ private:
 	std::stringstream buf; // for startline and header
 	size_t requestMessageSize;
 	std::map<std::string, std::string> headerbuf;
+	size_t headerbufSize;
 
 public:
 	Request();
 	// ~Request(); // remove buffer
-	int fillBuffer(char *octets, size_t len);
+	int fillBuffer(const char *octets, size_t len);
 	int end(void); // return 1 when message completed
 
 private:
@@ -44,6 +45,7 @@ private:
 	bool detectSectionDelimiter(std::string &line);
 	bool checkLineFinishedWithoutNewline(std::stringstream &buf);
 	void doRequestEpilogue(std::string &line);
+	size_t countParsedOctets(const std::string& line, const size_t& initialBufferLength);
 };
 
 #endif

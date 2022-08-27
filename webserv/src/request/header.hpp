@@ -6,6 +6,10 @@
 #include <string>
 #include <vector>
 
+#if DEBUG
+#include <iostream>
+#endif
+
 struct Header
 {
 	std::map<std::string, std::vector<FieldValue> > headerMap;
@@ -53,7 +57,7 @@ struct Header
 		tokenvec.push_back("Authorization");
 		tokenvec.push_back("Origin");
 		tokenvec.push_back("Cookie");
-		tokenvec.push_back("Connection");
+		tokenvec.push_back("Connection"); //keep-alive
 
 		/**
 		 * Cache
@@ -70,7 +74,39 @@ struct Header
 			std::transform(tokenvec[i].begin(), tokenvec[i].end(), tokenvec[i].begin(), ::tolower);
 			headerMap[tokenvec[i]];
 		}
+#if DEBUG
+		size_t i = 0;
+		std::cout << "[ Header Fields ]\n";
+		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
+				 it != headerMap.end(); it++)
+		{
+			std::cout << "[" << i << "] " << it->first << std::endl;
+			i++;
+		}
+		std::cout << "\n";
+#endif
 	}
+
+#if DEBUG
+	void print(void)
+	{
+		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
+				 it != headerMap.end(); it++)
+		{
+			std::cout << "[" << it->first << "] " << "\n";
+			for (size_t i = 0; i < it->second.size(); i++)
+			{
+				std::cout << "\t" << "value[" << i << "]: " << (it->second)[i].value << std::endl;
+				size_t j = 0;
+				for (std::map<std::string, std::string>::iterator descit = (it->second)[i].descriptions.begin();
+				 descit != (it->second)[i].descriptions.end(); descit++)
+				 {
+					std::cout << "\t- description[" << j++ << "]: " << descit->first << " = " << descit->second << std::endl;
+				 }
+			}
+		}
+	}
+#endif
 };
 
 #endif
