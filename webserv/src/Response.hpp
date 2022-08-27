@@ -63,6 +63,7 @@ private:
 
 	static statusInfoType initializeDefaultInfo();
 	std::string getStatusInfo(int code) const;
+	std::string getCurrentTime() const;
 
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);

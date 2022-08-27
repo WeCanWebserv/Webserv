@@ -1,8 +1,8 @@
 #include "Response.hpp"
+#include <ctime>
 #include <fcntl.h>
 #include <unistd.h>
 
-// FIX: 매크로는 최대한 제거
 #define SERVER_NAME "webserv"
 #define SERVER_PROTOCOL "HTTP/1.1"
 #define CRLF "\r\n"
@@ -21,12 +21,7 @@ std::string toString(T value)
 
 Response::statusInfoType Response::defaultInfo = initializeDefaultInfo();
 
-Response::Response() : statusCode(200), sentBytes(0), totalBytes(0), isReady(false)
-{
-	this->header["Server"] = SERVER_NAME;
-	// FIX: get current date / rfc5322
-	this->header["Date"] = "Tue, 23 Aug 2022 15:00:00 GMT";
-}
+Response::Response() : statusCode(200), sentBytes(0), totalBytes(0), isReady(false) {}
 
 Response::Response(const Response &other)
 		: statusCode(other.statusCode), header(other.header), body(), buffer(other.buffer),
@@ -54,7 +49,6 @@ void Response::clear()
 	clearBody(this->body);
 
 	header.clear();
-	header["Server"] = SERVER_NAME;
 
 	isReady = false;
 }
@@ -210,6 +204,8 @@ void Response::setBuffer()
 	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << getStatusInfo(this->statusCode)
 			<< CRLF;
 
+	tmp << "Server: " << SERVER_NAME << CRLF;
+	tmp << "Date: " << getCurrentTime() << CRLF;
 	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
 			 ++it)
 	{
@@ -287,6 +283,22 @@ std::string Response::getStatusInfo(int code) const
 	return (this->defaultInfo[code]);
 }
 
+std::string Response::getCurrentTime() const
+{
+	const int bufSize = 32;
+	char buf[bufSize];
+	std::string format;
+	std::time_t rawTime;
+	std::tm *timeInfo;
+
+	format = "%a, %d %b %G %T GMT";
+	std::time(&rawTime);
+	timeInfo = std::gmtime(&rawTime);
+	std::strftime(buf, bufSize, format.c_str(), timeInfo);
+	return (std::string(buf));
+}
+
+// FIX: extract to Uri struct
 Response::Uri Response::createUri(const std::string &originUri)
 {
 	Uri uri;
