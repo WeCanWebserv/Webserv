@@ -11,15 +11,6 @@ public:
 	typedef std::map<int, std::string> statusInfoType;
 	typedef std::map<std::string, std::string> headerType;
 
-	struct Uri
-	{
-		std::string originUri;
-		std::string path;
-		std::string query;
-		std::string extension;
-		bool isDirectory;
-	};
-
 	struct Body
 	{
 		int fd;
@@ -66,7 +57,7 @@ private:
 	std::string getCurrentTime() const;
 
 	template<class Locations>
-	typename Locations::iterator findLocation(Uri &uri, Locations &location);
+	typename Locations::iterator findLocation(std::string path, Locations &location);
 
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);
@@ -75,7 +66,6 @@ private:
 	void setBodyToDefaultErrorPage(int code);
 	std::string generateDefaultErrorPage(int code) const;
 
-	Uri createUri(const std::string &uri);
 	void clearBody(Body &body);
 };
 

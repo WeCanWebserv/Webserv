@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include "UriParser.hpp"
 #include <ctime>
 #include <fcntl.h>
 #include <unistd.h>
@@ -78,15 +79,14 @@ std::size_t Response::moveBufPosition(int nbyte)
 template<class Request, class ConfigInfo>
 void Response::process(Request &req, ConfigInfo &config)
 {
-	Uri uri;
+	UriParser uriParser(req.uri);
 	std::string targetPath;
 	typename ConfigInfo::locationType::iterator locIter;
 
+	// FIX: remove
 	clear();
 
-	uri = createUri(req.uri);
-
-	locIter = findLocation(uri, config.location);
+	locIter = findLocation(uriParser.getPath(), config.location);
 	if (locIter == config.location.end())
 		throw (404);
 
@@ -96,14 +96,14 @@ void Response::process(Request &req, ConfigInfo &config)
 	if (location.allowMethod.find(req.method) == location.allowMethod.end())
 		throw (405);
 
-	if (location.cgis.find(uri.extension) != location.cgis.end())
+	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
 		throw (501); // cgi.
 
-	if (uri.isDirectory)
+	if (uriParser.isDirectory())
 		throw (501); // find indexFile or directory listing.
 
-	targetPath = uri.path;
-	targetPath = targetPath.replace(0, locPath.size(), location.root);
+	targetPath = uriParser.getPath();
+	targetPath.replace(0, locPath.size(), location.root);
 
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
@@ -172,8 +172,6 @@ int Response::readBody()
 	char buf[bufSize];
 	int n;
 
-	if (this->body.fd == -1)
-		return (-1);
 	n = read(this->body.fd, buf, bufSize - 1);
 	if (n == -1)
 		return (-1);
@@ -303,14 +301,12 @@ std::string Response::getCurrentTime() const
 }
 
 template<class Locations>
-typename Locations::iterator Response::findLocation(Uri &uri, Locations &location)
+typename Locations::iterator Response::findLocation(std::string path, Locations &location)
 {
 	typename Locations::iterator found;
-	std::string path;
 	std::string loc;
 	std::string::size_type pos;
 
-	path = uri.path;
 	while (path.size() > 0)
 	{
 		pos = path.rfind("/");
@@ -323,52 +319,6 @@ typename Locations::iterator Response::findLocation(Uri &uri, Locations &locatio
 		path = path.substr(0, pos);
 	}
 	return (location.end());
-}
-
-// FIX: extract to Uri struct
-Response::Uri Response::createUri(const std::string &originUri)
-{
-	Uri uri;
-	std::string::size_type pos;
-
-	if (originUri.size() > 0)
-	{
-		uri.originUri = originUri;
-
-		// if absolute-uri
-		pos = originUri.find("://");
-		if (originUri[0] != '/' && pos != std::string::npos)
-		{
-			pos = originUri.find('/', pos + 1);
-			uri.path = pos == std::string::npos ? "/" : originUri.substr(pos);
-		}
-		else
-		{
-			pos = originUri.find_first_not_of(".");
-			uri.path = pos == std::string::npos ? "/" : originUri.substr(pos);
-		}
-
-		// if has query
-		pos = uri.path.find("?");
-		if (pos != std::string::npos)
-		{
-			uri.query = uri.path.substr(pos + 1, uri.path.find("#", pos));
-			uri.path = uri.path.substr(0, pos);
-		}
-
-		// if has extension
-		pos = uri.path.rfind(".");
-		if (pos != std::string::npos)
-		{
-			uri.extension = uri.path.substr(pos);
-		}
-
-		if (uri.path[uri.path.size() - 1] == '/')
-			uri.isDirectory = true;
-		else
-			uri.isDirectory = false;
-	}
-	return (uri);
 }
 
 void Response::clearBody(Body &targetBody)
