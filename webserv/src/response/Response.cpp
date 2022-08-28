@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
 #include <ctime>
 #include <fcntl.h>
@@ -19,8 +20,6 @@ std::string toString(T value)
 	return (ss.str());
 }
 } // namespace ft
-
-Response::statusInfoType Response::defaultInfo = initializeDefaultInfo();
 
 Response::Response() : statusCode(200), sentBytes(0), totalBytes(0), isReady(false) {}
 
@@ -153,7 +152,7 @@ std::string Response::generateDefaultErrorPage(int code) const
 	std::stringstream html;
 	std::string errorMsg;
 
-	errorMsg = getStatusInfo(code);
+	errorMsg = ReasonPhrase::get(code);
 
 	html << "<html>";
 	html << "<head>"
@@ -203,7 +202,7 @@ void Response::setBuffer()
 {
 	std::stringstream tmp;
 
-	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << getStatusInfo(this->statusCode)
+	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << ReasonPhrase::get(this->statusCode)
 			<< CRLF;
 
 	tmp << "Server: " << SERVER_NAME << CRLF;
@@ -224,65 +223,6 @@ void Response::setBuffer()
 	this->buffer = tmp.str();
 	this->totalBytes = this->buffer.size();
 	this->isReady = true;
-}
-
-Response::statusInfoType Response::initializeDefaultInfo()
-{
-	statusInfoType info;
-
-	info[100] = "Continue";
-	info[101] = "Switching Protocols";
-	info[200] = "OK";
-	info[201] = "Created";
-	info[202] = "Accepted";
-	info[203] = "Non-Authoritative Information";
-	info[204] = "No Content";
-	info[205] = "Reset Content";
-	info[206] = "Partial Content";
-	info[300] = "Multiple Choices";
-	info[301] = "Moved Permanently";
-	info[302] = "Found";
-	info[303] = "See Other";
-	info[304] = "Not Modified";
-	info[305] = "Use Proxy";
-	info[307] = "Temporary Redirect";
-	info[400] = "Bad Request";
-	info[401] = "Unauthorized";
-	info[402] = "Payment Required";
-	info[403] = "Forbidden";
-	info[404] = "Not Found";
-	info[405] = "Method Not Allowed";
-	info[406] = "Not Acceptable";
-	info[407] = "Proxy Authentication Required";
-	info[408] = "Request Timeout";
-	info[409] = "Conflict";
-	info[410] = "Gone";
-	info[411] = "Length Required";
-	info[412] = "Precondition Failed";
-	info[413] = "Payload Too Large";
-	info[414] = "URI Too Long";
-	info[415] = "Unsupported Media Type";
-	info[416] = "Range Not Satisfiable";
-	info[417] = "Expectation Failed";
-	info[426] = "Upgrade Required";
-	info[500] = "Internal Server Error";
-	info[501] = "Not Implemented";
-	info[502] = "Bad Gateway";
-	info[503] = "Service Unavailable";
-	info[504] = "Gateway Timeout";
-	info[505] = "HTTP Version Not Supported";
-	return (info);
-}
-
-std::string Response::getStatusInfo(int code) const
-{
-	if (code < 100 || code >= 600)
-		return ("Undefined Status");
-
-	if (this->defaultInfo.find(code) == this->defaultInfo.end())
-		code = (code / 100) * 100; // e.g. 2xx -> 200
-
-	return (this->defaultInfo[code]);
 }
 
 std::string Response::getCurrentTime() const

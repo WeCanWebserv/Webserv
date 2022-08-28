@@ -8,7 +8,6 @@
 class Response
 {
 public:
-	typedef std::map<int, std::string> statusInfoType;
 	typedef std::map<std::string, std::string> headerType;
 
 	struct Body
@@ -19,7 +18,6 @@ public:
 	};
 
 private:
-	static statusInfoType defaultInfo;
 	int statusCode;
 	headerType header;
 	Body body;
@@ -52,8 +50,6 @@ public:
 private:
 	Response &operator=(const Response &rhs);
 
-	static statusInfoType initializeDefaultInfo();
-	std::string getStatusInfo(int code) const;
 	std::string getCurrentTime() const;
 
 	template<class Locations>
