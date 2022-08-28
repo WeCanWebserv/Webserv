@@ -52,9 +52,9 @@ public:
 	std::size_t moveBufPosition(int nbyte);
 
 	template<class Request, class ConfigInfo>
-	void setRequest(Request &req, ConfigInfo config);
+	void process(Request &req, ConfigInfo &config);
 	template<class ConfigInfo>
-	void setError(int code, ConfigInfo config, bool close = false);
+	void process(int errorCode, ConfigInfo &config, bool close = false);
 
 	int readBody();
 
@@ -65,12 +65,15 @@ private:
 	std::string getStatusInfo(int code) const;
 	std::string getCurrentTime() const;
 
+	template<class Locations>
+	typename Locations::iterator findLocation(Uri &uri, Locations &location);
+
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);
 	void setBuffer();
 
 	void setBodyToDefaultErrorPage(int code);
-	std::string generateDefaultErrorPage(int code);
+	std::string generateDefaultErrorPage(int code) const;
 
 	Uri createUri(const std::string &uri);
 	void clearBody(Body &body);

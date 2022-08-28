@@ -42,15 +42,15 @@ bool Response::done() const
 
 void Response::clear()
 {
-	buffer.clear();
-	totalBytes = 0;
-	sentBytes = 0;
+	this->buffer.clear();
+	this->totalBytes = 0;
+	this->sentBytes = 0;
 
 	clearBody(this->body);
 
-	header.clear();
+	this->header.clear();
 
-	isReady = false;
+	this->isReady = false;
 }
 
 const char *Response::getBuffer() const
@@ -76,30 +76,34 @@ std::size_t Response::moveBufPosition(int nbyte)
 }
 
 template<class Request, class ConfigInfo>
-void Response::setRequest(Request &req, ConfigInfo config)
+void Response::process(Request &req, ConfigInfo &config)
 {
 	Uri uri;
 	std::string targetPath;
-	std::string loc;
-	typename ConfigInfo::locationType *location;
+	typename ConfigInfo::locationType::iterator locIter;
+
+	clear();
 
 	uri = createUri(req.uri);
-	// TODO
-	loc = findLocation(uri, config.location);
-	location = &config.location[loc];
-	if (location == NULL)
+
+	locIter = findLocation(uri, config.location);
+	if (locIter == config.location.end())
 		throw (404);
-	if (location->allowMethod.find(req.method) == location->allowMethod.end())
+
+	const std::string &locPath = (*locIter).first;
+	typename ConfigInfo::locationType::mapped_type &location = (*locIter).second;
+
+	if (location.allowMethod.find(req.method) == location.allowMethod.end())
 		throw (405);
 
-	if (location->cgis.find(uri.extension) != location->cgis.end())
+	if (location.cgis.find(uri.extension) != location.cgis.end())
 		throw (501); // cgi.
 
 	if (uri.isDirectory)
 		throw (501); // find indexFile or directory listing.
 
 	targetPath = uri.path;
-	targetPath = targetPath.replace(0, loc.size(), location->root);
+	targetPath = targetPath.replace(0, locPath.size(), location.root);
 
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
@@ -107,13 +111,13 @@ void Response::setRequest(Request &req, ConfigInfo config)
 }
 
 template<class ConfigInfo>
-void Response::setError(int code, ConfigInfo config, bool close)
+void Response::process(int errorCode, ConfigInfo &config, bool close)
 {
 	std::string errorPage;
 
 	clear();
 
-	this->statusCode = code;
+	this->statusCode = errorCode;
 
 	if (close)
 	{
@@ -121,15 +125,15 @@ void Response::setError(int code, ConfigInfo config, bool close)
 		setHeader("Connection", "close");
 	}
 
-	if (config.errorPages.find(code) != config.errorPages.end())
+	if (config.errorPages.find(errorCode) != config.errorPages.end())
 	{
-		errorPage = config.errorPages[code];
+		errorPage = config.errorPages[errorCode];
 		this->body.fd = open(errorPage.c_str(), O_RDONLY);
 		if (this->body.fd == -1)
-			setBodyToDefaultErrorPage(code);
+			setBodyToDefaultErrorPage(errorCode);
 	}
 	else
-		setBodyToDefaultErrorPage(code);
+		setBodyToDefaultErrorPage(errorCode);
 }
 
 void Response::setBodyToDefaultErrorPage(int code)
@@ -144,7 +148,7 @@ void Response::setBodyToDefaultErrorPage(int code)
 	setBuffer();
 }
 
-std::string Response::generateDefaultErrorPage(int code)
+std::string Response::generateDefaultErrorPage(int code) const
 {
 	std::stringstream html;
 	std::string errorMsg;
@@ -249,7 +253,7 @@ Response::statusInfoType Response::initializeDefaultInfo()
 	info[402] = "Payment Required";
 	info[403] = "Forbidden";
 	info[404] = "Not Found";
-	info[405] = "Method Not Allowd";
+	info[405] = "Method Not Allowed";
 	info[406] = "Not Acceptable";
 	info[407] = "Proxy Authentication Required";
 	info[408] = "Request Timeout";
@@ -298,6 +302,29 @@ std::string Response::getCurrentTime() const
 	return (std::string(buf));
 }
 
+template<class Locations>
+typename Locations::iterator Response::findLocation(Uri &uri, Locations &location)
+{
+	typename Locations::iterator found;
+	std::string path;
+	std::string loc;
+	std::string::size_type pos;
+
+	path = uri.path;
+	while (path.size() > 0)
+	{
+		pos = path.rfind("/");
+		if (pos == std::string::npos)
+			break;
+		loc = path.substr(0, pos + 1);
+		found = location.find(loc);
+		if (found != location.end())
+			return (found);
+		path = path.substr(0, pos);
+	}
+	return (location.end());
+}
+
 // FIX: extract to Uri struct
 Response::Uri Response::createUri(const std::string &originUri)
 {
@@ -308,7 +335,7 @@ Response::Uri Response::createUri(const std::string &originUri)
 	{
 		uri.originUri = originUri;
 
- 		// if absolute-uri
+		// if absolute-uri
 		pos = originUri.find("://");
 		if (originUri[0] != '/' && pos != std::string::npos)
 		{
@@ -335,6 +362,11 @@ Response::Uri Response::createUri(const std::string &originUri)
 		{
 			uri.extension = uri.path.substr(pos);
 		}
+
+		if (uri.path[uri.path.size() - 1] == '/')
+			uri.isDirectory = true;
+		else
+			uri.isDirectory = false;
 	}
 	return (uri);
 }
