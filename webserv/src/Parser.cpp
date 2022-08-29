@@ -7,138 +7,7 @@
 #include <stdexcept>
 #include <vector>
 
-using std::string;
-
-// int ft_sed(const string &filename, const string &s1, const string &s2)
-// {
-// 	// setIFS
-
-// 	if (filename.empty() == true)
-// 	{
-// 		std::cout << "Error: filename is empty\n";
-// 		return 1;
-// 	}
-
-// 	if (s1.empty() == true)
-// 	{
-// 		std::cout << "Error: string1 is empty\n";
-// 		return 1;
-// 	}
-
-// 	std::ifstream ifs(filename);
-// 	if (ifs.is_open() == false)
-// 	{
-// 		std::cout << "Error\n";
-// 		std::perror(filename.c_str());
-// 		return 1;
-// 	}
-
-// 	// setOFS
-// 	std::ofstream ofs(filename + ".replace");
-// 	if (ofs.is_open() == false)
-// 	{
-// 		std::cout << "Error\n";
-// 		std::perror("ofstream");
-// 		ifs.close();
-// 		return 1;
-// 	}
-
-// 	if (s1 == s2)
-// 	{
-// 		// createCopyNoReplaced
-// 		while (1)
-// 		{
-// 			string line;
-// 			std::getline(ifs, line);
-// 			ofs << line << '\n';
-// 			if (ifs.eof() == true)
-// 			{
-// 				break;
-// 			}
-// 		}
-// 	}
-// 	else
-// 	{
-// 		// createCopyReplaced
-// 		while (1)
-// 		{
-// 			string replaced_line;
-// 			string origin_line;
-// 			std::getline(ifs, origin_line);
-// 			size_t pos = 0;
-// 			while (1)
-// 			{
-// 				size_t found_index = origin_line.find(s1, pos);
-// 				if (found_index == string::npos)
-// 				{
-// 					replaced_line += origin_line.substr(pos, origin_line.length() - pos);
-// 					break;
-// 				}
-// 				if (pos < found_index)
-// 				{
-// 					replaced_line += origin_line.substr(pos, found_index - pos);
-// 					pos = found_index;
-// 				}
-// 				replaced_line += s2;
-// 				pos += s1.length();
-// 			}
-// 			ofs << replaced_line;
-// 			if (ifs.eof() == true)
-// 			{
-// 				break;
-// 			}
-// 			ofs << '\n';
-// 		}
-// 	}
-// 	// ~Sed
-// 	ifs.close();
-// 	ofs.close();
-// 	return 0;
-// }
-
-std::stringstream ft_sed2(std::ifstream &inputStream, const string &s1, const string &s2)
-{
-	if (s1.empty() || s1 == s2)
-	{
-		return std::stringstream();
-	}
-
-	std::stringstream sedStream;
-	while (1)
-	{
-		string replacedLine;
-		string currentLine;
-		std::getline(inputStream, currentLine);
-		size_t currentIdx = 0;
-		while (1)
-		{
-			size_t foundIdx = currentLine.find(s1, currentIdx);
-			if (foundIdx == string::npos)
-			{
-				replacedLine += currentLine.substr(currentIdx, currentLine.length() - currentIdx);
-				break;
-			}
-			if (currentIdx < foundIdx)
-			{
-				replacedLine += currentLine.substr(currentIdx, foundIdx - currentIdx);
-				currentIdx = foundIdx;
-			}
-			replacedLine += s2;
-			currentIdx += s1.length();
-		}
-
-		sedStream << replacedLine;
-		if (inputStream.eof() == true)
-		{
-			break;
-		}
-
-		sedStream << '\n';
-	}
-	return sedStream;
-}
-
-void ft_sed3(std::stringstream &strStream, const string &s1, const string &s2)
+void ft_sed3(std::stringstream &strStream, const std::string &s1, const std::string &s2)
 {
 	if (s1.empty() || s1 == s2)
 	{
@@ -148,14 +17,14 @@ void ft_sed3(std::stringstream &strStream, const string &s1, const string &s2)
 	std::stringstream sedStream;
 	while (1)
 	{
-		string replacedLine;
-		string currentLine;
+		std::string replacedLine;
+		std::string currentLine;
 		std::getline(strStream, currentLine);
 		size_t currentIdx = 0;
 		while (1)
 		{
 			size_t foundIdx = currentLine.find(s1, currentIdx);
-			if (foundIdx == string::npos)
+			if (foundIdx == std::string::npos)
 			{
 				replacedLine += currentLine.substr(currentIdx, currentLine.length() - currentIdx);
 				break;
@@ -289,7 +158,6 @@ void print(struct parser &p)
 			std::cout << "\t\t" << directives[i] << std::endl;
 		}
 		std::cout << std::endl;
-		// std::cout << "@ Locations" << std::endl;
 		for (std::map<std::string, struct location>::iterator first = serv.locations.begin();
 				 first != serv.locations.end(); first++)
 		{
@@ -328,6 +196,7 @@ int main()
 		}
 		configBuffer << line;
 	}
+	configFile.close();
 
 	ft_sed3(configBuffer, "{", "\n{\n");
 	ft_sed3(configBuffer, ";", ";\n");
@@ -338,7 +207,6 @@ int main()
 	{
 		std::string line;
 		std::getline(configBuffer, line);
-		// boost::trim(line);
 		ft_trim(line);
 		if (line.empty())
 		{
