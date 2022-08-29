@@ -80,26 +80,26 @@ void Response::process(Request &req, ConfigInfo &config)
 
 	locIter = findLocation(uriParser.getPath(), config.location);
 	if (locIter == config.location.end())
-		throw (404);
+		throw(404);
 
 	const std::string &locPath = (*locIter).first;
 	typename ConfigInfo::locationType::mapped_type &location = (*locIter).second;
 
 	if (location.allowMethod.find(req.method) == location.allowMethod.end())
-		throw (405);
+		throw(405);
 
 	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
-		throw (501); // cgi.
+		throw(501); // cgi.
 
 	if (uriParser.isDirectory())
-		throw (501); // find indexFile or directory listing.
+		throw(501); // find indexFile or directory listing.
 
 	targetPath = uriParser.getPath();
 	targetPath.replace(0, locPath.size(), location.root);
 
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
-		throw (404);
+		throw(404);
 	setHeader("Content-Type", MediaType::get(uriParser.getExtension()));
 }
 
