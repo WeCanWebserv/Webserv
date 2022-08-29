@@ -199,9 +199,9 @@ std::vector<std::string> gDirectives;
 
 struct location
 {
-	location() : url(), directives(), isInBlock(false) {}
-	std::string url;
-	std::vector<std::string> directives;
+	location() : urls(), key(), isInBlock(false) {}
+	std::map<std::string, std::vector<std::string> > urls;
+	std::string key;
 	bool isInBlock;
 };
 struct server
@@ -222,7 +222,7 @@ struct http
 
 struct parser
 {
-	parser() : directives(),http(), context(CONTEXT_NON), isInBlock(false) {}
+	parser() : directives(), http(), context(CONTEXT_NON), isInBlock(false) {}
 	std::vector<std::string> directives;
 	struct http http;
 	int context;
@@ -234,30 +234,36 @@ void print(struct parser &p)
 	std::vector<std::string> &globalDirectives = p.directives;
 	std::vector<std::string> &httpDirectives = p.http.directives;
 	std::vector<std::string> &serverDirectives = p.http.serv.directives;
-	std::vector<std::string> &locationDirectives = p.http.serv.loc.directives;
+	std::map<std::string, std::vector<std::string> > &locations = p.http.serv.loc.urls;
 	std::cout << "@ Global" << std::endl;
 	for (int i = 0; i < globalDirectives.size(); i++)
 	{
-		std::cout << globalDirectives[i] << std::endl;
+		std::cout << '\t' <<  globalDirectives[i] << std::endl;
 	}
 
 	std::cout << "@ Http" << std::endl;
 	for (int i = 0; i < httpDirectives.size(); i++)
 	{
-		std::cout << httpDirectives[i] << std::endl;
+		std::cout << '\t' <<  httpDirectives[i] << std::endl;
 	}
 
 	std::cout << "@ Server" << std::endl;
 	for (int i = 0; i < serverDirectives.size(); i++)
 	{
-		std::cout << serverDirectives[i] << std::endl;
+		std::cout << '\t' << serverDirectives[i] << std::endl;
 	}
 
 	std::cout << "@ Location" << std::endl;
-	for (int i = 0; i < locationDirectives.size(); i++)
+	for (std::map<std::string, std::vector<std::string> >::iterator first = locations.begin();
+			 first != locations.end(); first++)
 	{
-		std::cout << locationDirectives[i] << std::endl;
-	}
+    std::cout << "path: " << first->first << std::endl;
+    std::vector<std::string>& locationDirectives = first->second;
+    for (int i = 0; i < locationDirectives.size(); i++)
+    {
+      std::cout << '\t' << locationDirectives[i] << std::endl;
+    }
+  }
 }
 
 int main()
@@ -355,7 +361,7 @@ int main()
 				{
 					std::cout << "line: " << __LINE__ << std::endl;
 					print(parser);
-					throw std::runtime_error("syntax wrong: context http");
+					throw std::runtime_error("syntax wrong: context location");
 				}
 				serv.isInBlock = true;
 			}
@@ -365,7 +371,7 @@ int main()
 				{
 					std::cout << "line: " << __LINE__ << std::endl;
 					print(parser);
-					throw std::runtime_error("syntax wrong: context http");
+					throw std::runtime_error("syntax wrong: context location");
 				}
 				serv.isInBlock = false;
 				parser.context = CONTEXT_HTTP;
@@ -376,7 +382,7 @@ int main()
 				{
 					std::cout << "line: " << __LINE__ << std::endl;
 					print(parser);
-					throw std::runtime_error("syntax wrong: context http");
+					throw std::runtime_error("syntax wrong: context location");
 				}
 				if (token == "location")
 				{
@@ -385,9 +391,13 @@ int main()
 					{
 						std::cout << "line: " << __LINE__ << std::endl;
 						print(parser);
-						throw std::runtime_error("syntax wrong: context http");
+						throw std::runtime_error("syntax wrong: context location");
 					}
-					serv.loc.url = token;
+					if (serv.loc.urls.find(token) != serv.loc.urls.end())
+					{
+						throw std::runtime_error("duplicated url");
+					}
+					serv.loc.key = token;
 					parser.context = CONTEXT_LOCATION;
 					break;
 				}
@@ -395,7 +405,7 @@ int main()
 				{
 					std::cout << "line: " << __LINE__ << std::endl;
 					print(parser);
-					throw std::runtime_error("syntax wrong: context http");
+					throw std::runtime_error("syntax wrong: context location");
 				}
 				else
 				{
@@ -426,6 +436,7 @@ int main()
 					throw std::runtime_error("syntax wrong: context location");
 				}
 				loc.isInBlock = false;
+				loc.key.clear();
 				parser.context = CONTEXT_SERVER;
 			}
 			else
@@ -444,7 +455,7 @@ int main()
 				}
 				else
 				{
-					loc.directives.push_back(lines[i].substr(0, lines[i].length() - 1));
+					loc.urls[loc.key].push_back(lines[i].substr(0, lines[i].length() - 1));
 				}
 			}
 			break;
