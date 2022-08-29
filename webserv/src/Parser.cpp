@@ -300,7 +300,23 @@ int main()
 		exit(1);
 	}
 	std::stringstream configBuffer;
-	configBuffer = ft_sed2(configFile, "{", "\n{\n");
+	std::string line;
+	while (!configFile.eof())
+	{
+		std::getline(configFile, line);
+
+		size_t foundIdx = line.find('#');
+		if (foundIdx == 0 || line.empty())
+			continue;
+
+		if (foundIdx != std::string::npos)
+		{
+			line.substr(0, foundIdx - 1);
+		}
+		configBuffer << line;
+	}
+
+	ft_sed3(configBuffer, "{", "\n{\n");
 	ft_sed3(configBuffer, ";", ";\n");
 	ft_sed3(configBuffer, "}", "\n}\n");
 
@@ -310,7 +326,7 @@ int main()
 		std::string line;
 		std::getline(configBuffer, line);
 		boost::trim(line);
-		if (line.empty() || line.front() == '#')
+		if (line.empty())
 		{
 			continue;
 		}
