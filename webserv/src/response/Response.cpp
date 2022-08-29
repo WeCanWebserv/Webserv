@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
 #include <ctime>
@@ -107,6 +108,7 @@ void Response::process(Request &req, ConfigInfo &config)
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
 		throw (404);
+	setHeader("Content-Type", MediaType::get(uriParser.getExtension()));
 }
 
 template<class ConfigInfo>
@@ -130,6 +132,7 @@ void Response::process(int errorCode, ConfigInfo &config, bool close)
 		this->body.fd = open(errorPage.c_str(), O_RDONLY);
 		if (this->body.fd == -1)
 			setBodyToDefaultErrorPage(errorCode);
+		setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
 	}
 	else
 		setBodyToDefaultErrorPage(errorCode);
@@ -143,7 +146,7 @@ void Response::setBodyToDefaultErrorPage(int code)
 	this->body.buffer << errorPage;
 	this->body.size = errorPage.size();
 	setHeader("Content-Length", ft::toString(this->body.size));
-	setHeader("Content-Type", "text/html");
+	setHeader("Content-Type", MediaType::get(".html"));
 	setBuffer();
 }
 
@@ -177,8 +180,6 @@ int Response::readBody()
 	else if (n == 0)
 	{
 		setHeader("Content-Length", ft::toString(this->body.size));
-		// FIX: {extension: media-type} 의 형태로 지원하는 타입 정의하기
-		setHeader("Content-Type", "text/html");
 		setBuffer();
 		return (0);
 	}
