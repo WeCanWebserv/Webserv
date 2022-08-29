@@ -244,6 +244,19 @@ struct parser
 	bool isInBlock;
 };
 
+void ft_trim(std::string& str, const std::string& ws = "\t\n\v\f\r ")
+{
+	size_t firstIdx = str.find_first_not_of(ws);
+	if (firstIdx == std::string::npos)
+		return;
+	else
+	{
+		size_t lastIdx = str.find_last_not_of(ws);
+		str.substr(firstIdx, lastIdx);
+	}
+
+}
+
 void print(struct parser &p)
 {
 	std::cout << "@ Global" << std::endl;
@@ -325,7 +338,8 @@ int main()
 	{
 		std::string line;
 		std::getline(configBuffer, line);
-		boost::trim(line);
+		// boost::trim(line);
+		ft_trim(line);
 		if (line.empty())
 		{
 			continue;
