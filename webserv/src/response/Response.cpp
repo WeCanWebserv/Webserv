@@ -22,12 +22,7 @@ std::string toString(T value)
 }
 } // namespace ft
 
-Response::Response() : statusCode(200), sentBytes(0), totalBytes(0), isReady(false) {}
-
-Response::Response(const Response &other)
-		: statusCode(other.statusCode), header(other.header), body(), buffer(other.buffer),
-			sentBytes(0), totalBytes(other.totalBytes), isReady(other.isReady)
-{}
+Response::Response() : statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false) {}
 
 Response::~Response() {}
 
@@ -82,9 +77,6 @@ void Response::process(Request &req, ConfigInfo &config)
 	UriParser uriParser(req.uri);
 	std::string targetPath;
 	typename ConfigInfo::locationType::iterator locIter;
-
-	// FIX: remove
-	clear();
 
 	locIter = findLocation(uriParser.getPath(), config.location);
 	if (locIter == config.location.end())

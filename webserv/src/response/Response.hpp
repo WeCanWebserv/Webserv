@@ -15,6 +15,8 @@ public:
 		int fd;
 		std::size_t size;
 		std::stringstream buffer;
+
+		Body() : fd(-1), size(0), buffer() {}
 	};
 
 private:
@@ -29,7 +31,6 @@ private:
 
 public:
 	Response();
-	Response(const Response &other);
 	~Response();
 
 	bool ready() const;
@@ -48,6 +49,7 @@ public:
 	int readBody();
 
 private:
+	Response(const Response &other);
 	Response &operator=(const Response &rhs);
 
 	std::string getCurrentTime() const;
