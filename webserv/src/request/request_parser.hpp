@@ -16,7 +16,7 @@ struct RequestParser
 	static void fillHeaderBuffer(std::map<std::string, std::string> &headerbuf,
 															 const std::string &str,
 															 const size_t headerbufSize);
-	// static int bodyParser(Body &body, Header::HeaderMap headerMap, char *octets, size_t startPos, size_t octetSize);
+	static void bodyParser(Body& body, std::vector<char> &bodyOctets, Header& header);
 
 private:
 	static std::vector<std::string> methodTokenSet;
@@ -41,9 +41,9 @@ private:
 	static void headerValueParser(std::vector<FieldValue> &fieldvalue, const std::string &headerValue);
 	static void headerValueDescriptionParser(std::map<std::string, std::string> &descriptions,
 															std::vector<std::string> &descriptionsTokenSet);
+	static int chunkedBodyParser(Body& body, std::vector<char>& bodyOctets);
+	static int contentLengthBodyParser(Body& body, std::vector<char>& bodyOctets, Header& header);
 
-	// static int chunkedBodyParser(Body &body, char *octets, size_t startPos, size_t octetSize);
-	// static int nonChunkedBodyParser(Body &body, size_t contentLength, char *octets, size_t startPos, size_t octetSize);
 
 	/**
 	 * uri parser util
@@ -56,7 +56,9 @@ private:
 	static size_t findToken(const std::string &token, const std::vector<std::string> &tokenset);
 	static std::vector<std::string> splitStr(const std::string &token, const char *delimiter);
 	static std::string &trimStr(std::string &target, const std::string &charset);
-	static std::string tolowerStr(const std::string &str);
+	static std::string tolowerStr(const char* str);
+	static char* vecToCstr(const std::vector<char>& vec, size_t size);
+	static std::vector<char> cstrToVec(const char* cstr, size_t size);
 };
 
 #endif

@@ -76,7 +76,7 @@ struct Header
 		}
 #if DEBUG
 		size_t i = 0;
-		std::cout << "[ Header Fields ]\n";
+		std::cout << "[ Predefined Header Fields ]\n";
 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
 				 it != headerMap.end(); it++)
 		{
