@@ -4,6 +4,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <vector>
 
 class Response
 {
@@ -65,6 +66,10 @@ private:
 	std::string generateDefaultErrorPage(int code) const;
 
 	void clearBody(Body &body);
+
+	std::vector<std::string> readDirectory(const std::string &path);
+	std::string searchIndexFile(
+			const std::vector<std::string> &files, const std::vector<std::string> &indexFiles);
 };
 
 #endif // !RESPONSE_HPP

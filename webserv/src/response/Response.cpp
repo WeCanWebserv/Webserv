@@ -2,9 +2,12 @@
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
+#include <algorithm>
 #include <ctime>
+#include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <vector>
 
 #define SERVER_NAME "webserv"
 #define SERVER_PROTOCOL "HTTP/1.1"
@@ -75,10 +78,10 @@ template<class Request, class ConfigInfo>
 void Response::process(Request &req, ConfigInfo &config)
 {
 	UriParser uriParser(req.uri);
-	std::string targetPath;
+	std::string targetPath = uriParser.getPath();
 	typename ConfigInfo::locationType::iterator locIter;
 
-	locIter = findLocation(uriParser.getPath(), config.location);
+	locIter = findLocation(targetPath, config.location);
 	if (locIter == config.location.end())
 		throw(404);
 
@@ -91,16 +94,36 @@ void Response::process(Request &req, ConfigInfo &config)
 	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
 		throw(501); // cgi.
 
-	if (uriParser.isDirectory())
-		throw(501); // find indexFile or directory listing.
-
-	targetPath = uriParser.getPath();
 	targetPath.replace(0, locPath.size(), location.root);
+
+	if (uriParser.isDirectory())
+	{
+		std::vector<std::string> files;
+
+		files = readDirectory(targetPath);
+		if (location.isAutoIndex)
+		{
+			/**
+			 * generateFileListPage(files);
+			 * return;
+			 */
+			throw(501);
+		}
+		else
+		{
+			std::string index;
+
+			index = searchIndexFile(files, location.indexFiles);
+			if (index.size() == 0)
+				throw(404);
+			targetPath += index;
+		}
+	}
 
 	this->body.fd = open(targetPath.c_str(), O_RDONLY);
 	if (this->body.fd == -1)
 		throw(404);
-	setHeader("Content-Type", MediaType::get(uriParser.getExtension()));
+	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
 }
 
 template<class ConfigInfo>
@@ -259,4 +282,39 @@ void Response::clearBody(Body &targetBody)
 	targetBody.fd = -1;
 	targetBody.size = 0;
 	targetBody.buffer.str("");
+}
+
+std::vector<std::string> Response::readDirectory(const std::string &path)
+{
+	std::vector<std::string> files;
+	DIR *dir;
+
+	dir = opendir(path.c_str());
+	if (dir)
+	{
+		dirent *file;
+
+		while ((file = readdir(dir)) != NULL)
+		{
+			files.push_back(file->d_name);
+		}
+		closedir(dir);
+	}
+	return (files);
+}
+
+std::string Response::searchIndexFile(
+		const std::vector<std::string> &files, const std::vector<std::string> &indexFiles)
+{
+	std::size_t indexSize;
+	std::vector<std::string>::const_iterator found;
+
+	indexSize = indexFiles.size();
+	for (std::size_t i = 0; i < indexSize; ++i)
+	{
+		found = std::find(files.begin(), files.end(), indexFiles[i]);
+		if (found != files.end())
+			return (indexFiles[i]);
+	}
+	return ("");
 }
