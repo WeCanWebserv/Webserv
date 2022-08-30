@@ -60,8 +60,8 @@ struct ServerConfig
 {
 	std::set<std::string> tableOfHosts;                     // addr:port
 	std::vector<std::string> listOfServerNames;             // server_names
-	std::map<std::string, LocationConfig> tableOfLocations; // uri, location_block
     int maxRequestBodySize;
+	std::map<std::string, LocationConfig> tableOfLocations; // uri, location_block
 
 	void print()
 	{
@@ -106,6 +106,8 @@ struct MainConfig
 	void print()
 	{
 		std::cout << "Server info/version: " << this->info << std::endl;
+		std::cout << std::endl;
+
 		httpConfig.print();
 	}
 };
