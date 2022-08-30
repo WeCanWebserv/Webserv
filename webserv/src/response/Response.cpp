@@ -169,14 +169,10 @@ std::string Response::generateDefaultErrorPage(int code) const
 
 	errorMsg = ReasonPhrase::get(code);
 
-	html << "<html>";
-	html << "<head>"
-			 << "<title>" << errorMsg << "</title>"
-			 << "</head>";
-	html << "<body>"
-			 << "<h1>" << code << " " << errorMsg << "</h1>"
-			 << "</body>";
-	html << "</html>";
+	html << "<html>\n";
+	html << "<head><title>" << errorMsg << "</title></head>\n";
+	html << "<body><h1>" << code << " " << errorMsg << "</h1></body>\n";
+	html << "</html>\n";
 	return (html.str());
 }
 
