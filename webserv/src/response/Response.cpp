@@ -2,12 +2,15 @@
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
+
 #include <algorithm>
 #include <ctime>
+#include <vector>
+
 #include <dirent.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
-#include <vector>
 
 #define SERVER_NAME "webserv"
 #define SERVER_PROTOCOL "HTTP/1.1"
@@ -103,11 +106,8 @@ void Response::process(Request &req, ConfigInfo &config)
 		files = readDirectory(targetPath);
 		if (location.isAutoIndex)
 		{
-			/**
-			 * generateFileListPage(files);
-			 * return;
-			 */
-			throw(501);
+			setBodyToDefaultPage(generateFileListPage(req.uri, files));
+			return;
 		}
 		else
 		{
@@ -146,20 +146,17 @@ void Response::process(int errorCode, ConfigInfo &config, bool close)
 		errorPage = config.errorPages[errorCode];
 		this->body.fd = open(errorPage.c_str(), O_RDONLY);
 		if (this->body.fd == -1)
-			setBodyToDefaultErrorPage(errorCode);
+			setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
 		setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
 	}
 	else
-		setBodyToDefaultErrorPage(errorCode);
+		setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
 }
 
-void Response::setBodyToDefaultErrorPage(int code)
+void Response::setBodyToDefaultPage(const std::string &html)
 {
-	std::string errorPage;
-
-	errorPage = generateDefaultErrorPage(code);
-	this->body.buffer << errorPage;
-	this->body.size = errorPage.size();
+	this->body.buffer << html;
+	this->body.size = html.size();
 	setHeader("Content-Length", ft::toString(this->body.size));
 	setHeader("Content-Type", MediaType::get(".html"));
 	setBuffer();
@@ -180,6 +177,44 @@ std::string Response::generateDefaultErrorPage(int code) const
 			 << "<h1>" << code << " " << errorMsg << "</h1>"
 			 << "</body>";
 	html << "</html>";
+	return (html.str());
+}
+
+std::string Response::generateFileListPage(
+		const std::string &path, const std::vector<std::string> &files) const
+{
+	std::stringstream html;
+	std::size_t totalFiles = files.size();
+
+	html << "<html>\n";
+	html << "<head><title>Index of " << path << "</title></head>\n";
+	html << "<body>\n";
+	html << "<h1>Index of " << path << "</h1><hr><pre><a href=\"../\">../</a>\n";
+
+	for (std::size_t i = 0; i < totalFiles; ++i)
+	{
+		// skip if dot file
+		if (files[i][0] == '.')
+			continue;
+
+		struct stat st;
+
+		if (stat(files[i].c_str(), &st) == -1)
+			continue;
+		// file name
+		html << "<a href=\"" << files[i] << "\">" << files[i] << "</a>";
+		html << std::string(50 - files[i].size(), ' ');
+
+		// time of last status change
+		html << timeInfoToString(std::gmtime(&st.st_ctime), "%a, %d %b %G %T");
+
+		// total size
+		std::string totalSize = ft::toString(st.st_size);
+		html << std::string(20 - totalSize.size(), ' ') << totalSize << '\n';
+	}
+
+	html << "</pre><hr></body>\n";
+	html << "</html>\n";
 	return (html.str());
 }
 
@@ -241,10 +276,17 @@ void Response::setBuffer()
 	this->isReady = true;
 }
 
-std::string Response::getCurrentTime() const
+std::string Response::timeInfoToString(std::tm *timeInfo, const std::string format) const
 {
 	const int bufSize = 32;
 	char buf[bufSize];
+
+	std::strftime(buf, bufSize, format.c_str(), timeInfo);
+	return (std::string(buf));
+}
+
+std::string Response::getCurrentTime() const
+{
 	std::string format;
 	std::time_t rawTime;
 	std::tm *timeInfo;
@@ -252,8 +294,7 @@ std::string Response::getCurrentTime() const
 	format = "%a, %d %b %G %T GMT";
 	std::time(&rawTime);
 	timeInfo = std::gmtime(&rawTime);
-	std::strftime(buf, bufSize, format.c_str(), timeInfo);
-	return (std::string(buf));
+	return (timeInfoToString(timeInfo, format));
 }
 
 template<class Locations>
