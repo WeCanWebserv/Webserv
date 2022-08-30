@@ -192,12 +192,13 @@ int main()
 
 		if (foundIdx != std::string::npos)
 		{
-			line.substr(0, foundIdx - 1);
+			line = line.substr(0, foundIdx - 1);
 		}
 		configBuffer << line;
 	}
 	configFile.close();
 
+	std::cout << configBuffer.str() << std::endl;
 	ft_sed3(configBuffer, "{", "\n{\n");
 	ft_sed3(configBuffer, ";", ";\n");
 	ft_sed3(configBuffer, "}", "\n}\n");
@@ -214,7 +215,6 @@ int main()
 		}
 		lines.push_back(line);
 	}
-
 	struct parser parser;
 
 	std::string token;
