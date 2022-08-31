@@ -12,6 +12,13 @@
 
 struct Header
 {
+	/**
+	 * struct FieldValue
+	 * {
+	 * 		std::string value;
+	 * 		std::map<std::string, std::string> descriptions;
+	 * };
+	*/	
 	std::map<std::string, std::vector<FieldValue> > headerMap;
 
 	Header()
@@ -74,7 +81,7 @@ struct Header
 			std::transform(tokenvec[i].begin(), tokenvec[i].end(), tokenvec[i].begin(), ::tolower);
 			headerMap[tokenvec[i]];
 		}
-#if DEBUG
+#if DEBUG>1
 		size_t i = 0;
 		std::cout << "[ Predefined Header Fields ]\n";
 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
@@ -93,6 +100,8 @@ struct Header
 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
 				 it != headerMap.end(); it++)
 		{
+			if (!it->second.size())
+				continue;
 			std::cout << "[" << it->first << "] "
 								<< "\n";
 			for (size_t i = 0; i < it->second.size(); i++)

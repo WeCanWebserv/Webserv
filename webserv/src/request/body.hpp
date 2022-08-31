@@ -51,7 +51,20 @@ public:
 		{
 			std::cout << this->payload[i];
 		}
-		std::cout <<"\n\n##########################################################\n";
+		std::cout << "\n\n##########################################################\n";
+		if (this->multipartFormData.size())
+		{
+			std::cout << "#########[ Body: Multipart Form Data ]#########\n";
+			for (size_t i = 0; i < this->multipartFormData.size(); i++)
+			{
+				std::cout << "\n[[[[[[[ Header " << i << " ]]]]]]]" << std::endl;
+				this->multipartFormData[i].first.print();
+				std::cout << "\n[[[[[[[ Body ]]]]]]]" << std::endl;
+				for (size_t j = 0; j < this->multipartFormData[i].second.size(); j++)
+					std::cout << this->multipartFormData[i].second[j];
+				std::cout << "\n\n";
+			}
+		}
 	}
 #endif
 

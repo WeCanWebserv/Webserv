@@ -89,9 +89,10 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 		if (this->parseStage == Request::STAGE_BODY)
 		{
 			std::vector<char> bodyOctets(octets + parsedLength, octets + octetSize);
+			// TODO: 0보다 클 때 (body를 다 읽고 남을 때: HTTP Piping 때문에)에 대한 처리를 해줘야 함
 			if (RequestParser::bodyParser(body, bodyOctets, header) >= 0)
 			{
-				// TODO: 0보다 클 때 (body를 다 읽고 남을 때: HTTP Piping 때문에)에 대한 처리를 해줘야 함
+				RequestParser::postBodyParser(body, header);
 				this->parseStage = Request::STAGE_DONE;
 #if DEBUG
 				body.print();

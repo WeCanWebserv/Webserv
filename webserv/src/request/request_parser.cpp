@@ -209,7 +209,7 @@ void RequestParser::headerParser(Header &header,
 	 * 8. invalid format이라면 해당 이유에 맞춰 status code를 throw한다.
 	 * 9. valid format이라면 FieldValue 구조에 맞춰 parsing 및 할당한다.
 	 */
-#if DEBUG
+#if DEBUG > 1
 	std::cout << "header section is done\n";
 #endif
 	std::vector<FieldValue> fieldvalueVec;
@@ -229,7 +229,8 @@ void RequestParser::headerParser(Header &header,
 #if DEBUG
 			std::cout << "no chunked and content-length\n";
 #endif
-			throw(411); // length required error
+			if (!(method == "GET" || method == "HEAD"))
+				throw(411); // length required error
 		}
 	}
 	for (std::map<std::string, std::string>::const_iterator it = headerbuf.begin();
@@ -239,7 +240,10 @@ void RequestParser::headerParser(Header &header,
 		header.headerMap[tolowerStr(it->first.c_str())] = fieldvalueVec;
 		fieldvalueVec.clear();
 	}
-#if DEBUG
+	if (!RequestParser::validateHeaderField(header))
+		throw(400);
+
+#if DEBUG > 1
 	header.print();
 #endif
 }
@@ -291,6 +295,35 @@ void RequestParser::headerValueDescriptionParser(std::map<std::string, std::stri
 	}
 }
 
+bool RequestParser::validateHeaderField(Header &header)
+{
+	/**
+	 * 값이 여러개일 때, 모두 같은 값이 와야 하는 필드: content-length, host, connection, User-Agent, Date
+	 * content-length: 10진수의 문자만
+	 * transfer-encoding: chunked, compress, deflate, gzip 중 하나
+	 * connection: keep-alive, close 둘중 하나만
+	 */
+	for (std::map<std::string, std::vector<FieldValue> >::iterator it = header.headerMap.begin();
+			 it != header.headerMap.end(); it++)
+	{
+		// RequestParser::checkAllValueIsSame();
+
+		if (it->first == tolowerStr("Content-Length"))
+		{
+			//check isdigit
+		}
+		else if (it->first == tolowerStr("connection"))
+		{
+			// check token
+		}
+		else if (it->first == tolowerStr("Transfer-Encoding"))
+		{
+			// check token
+		}
+	}
+	return true;
+}
+
 bool RequestParser::checkHeaderFieldnameHasSpace(const std::string &fieldname)
 {
 	return (fieldname.find(' ') != std::string::npos);
@@ -328,6 +361,86 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 	return (0);
 }
 
+void RequestParser::postBodyParser(Body &body, Header &header)
+{
+	std::vector<FieldValue> fieldValueVec = header.headerMap[tolowerStr("Content-Type")];
+	std::string boundary;
+	bool isMultipart;
+
+	isMultipart = false;
+	for (size_t i = 0; i < fieldValueVec.size(); i++)
+	{
+		if (fieldValueVec[i].value == "multipart/form-data")
+		{
+			boundary = fieldValueVec[i].descriptions[tolowerStr("boundary")];
+#if DEBUG
+			std::cout << "multipart/form-data boundary: " << boundary << std::endl;
+#endif
+			isMultipart = true;
+			break;
+		}
+	}
+	if (!isMultipart)
+		return;
+	RequestParser::parseMultipartBody(body, boundary);
+}
+
+void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
+{
+#if DEBUG > 1
+	std::cout << "[ " << __FUNCTION__ << " ]" << std::endl;
+#endif
+	std::vector<std::string> bodySet;
+	std::string rawdata;
+
+	rawdata.append(body.payload.begin(), body.payload.end());
+	bodySet = splitStrStrict(rawdata, boundary.c_str(), boundary.length());
+	for (size_t i = 0; i < bodySet.size() - 1; i++)
+	{
+		RequestParser::parseMultipartEachBody(body, trimStr(bodySet[i], "\r\n"));
+	}
+}
+
+void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBody)
+{
+#if DEBUG > 1
+	std::cout << "[ " << __FUNCTION__ << " ]" << std::endl;
+#endif
+	std::map<std::string, std::string> headerbuf;
+	std::vector<std::string> sectionSet;
+	std::stringstream ss;
+	std::string line;
+	Header eachHeader;
+
+	sectionSet = splitStrStrict(eachBody, "\r\n\r\n", 4);
+	if (sectionSet.size() == 1)
+	{
+		body.multipartFormData.push_back(
+				std::make_pair(Header(), cstrToVec(sectionSet[0].c_str(), sectionSet[0].size())));
+		return;
+	}
+	if (sectionSet.size() != 2)
+	{
+		throw(400);
+	}
+	ss << sectionSet[0]; // header는 binary data가 아니므로 string stream으로 관리해도 됨
+	while (std::getline(ss, line))
+	{
+		RequestParser::fillHeaderBuffer(headerbuf, line, 0);
+		if (ss.eof())
+			break;
+	}
+	const std::string dummyMethod = "GET";
+	const std::string dummyHostField = "localhost";
+	headerbuf[tolowerStr("Host")] = dummyHostField;
+	RequestParser::headerParser(eachHeader, headerbuf, dummyMethod);
+#if DEBUG > 2
+	eachHeader.print();
+#endif
+	body.multipartFormData.push_back(
+			std::make_pair(eachHeader, cstrToVec(sectionSet[1].c_str(), sectionSet[1].size())));
+}
+
 ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOctets)
 {
 	ssize_t lineLength;
@@ -340,7 +453,6 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOcte
 	{
 		if (body.getParseFlag() == Body::CHUNKED_LENGTH)
 		{
-			// parse length and save length
 			if ((lineLength = RequestParser::parseChunkedLengthLine(body, bodyOctets, lineBuffer)) < 0)
 				break;
 			if (lineLength == 0)
@@ -352,7 +464,6 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOcte
 		}
 		else if (body.getParseFlag() == Body::CHUNKED_CONTENT)
 		{
-			// parse body octets with saved length
 			if (!RequestParser::parseChunkedContentLine(body, bodyOctets, lineBuffer, lineLength))
 			{
 				lineLength = 0;
@@ -499,6 +610,36 @@ std::vector<std::string> RequestParser::splitStr(const std::string &str, const c
 	return tokenset;
 }
 
+std::vector<std::string>
+RequestParser::splitStrStrict(const std::string &str, const char *delimiter, size_t delimiterSize)
+{
+	std::vector<std::string> tokenset;
+	size_t pos;
+	size_t idx;
+
+	pos = 0;
+	idx = 0;
+	while (1)
+	{
+		if (pos >= str.length())
+			break;
+		idx = str.find(delimiter, pos);
+		if (idx == std::string::npos)
+		{
+			tokenset.push_back(str.substr(pos, str.length() - pos));
+			break;
+		}
+		if (idx == 0)
+		{
+			pos = idx + delimiterSize;
+			continue;
+		}
+		tokenset.push_back(str.substr(pos, idx - pos));
+		pos = idx + delimiterSize;
+	}
+	return tokenset;
+}
+
 // TODO: 입력의 변경을 없애자(입력을 변경하는 대신 새로운 변수를 만들어 반환하자)
 std::string &RequestParser::trimStr(std::string &target, const std::string &charset)
 {
@@ -525,6 +666,32 @@ std::string &RequestParser::trimStr(std::string &target, const std::string &char
 	}
 	return target;
 }
+
+// std::string &RequestParser::trimStrStrict(std::string &target, const std::string &charset)
+// {
+// 	size_t idx;
+// 	std::string::iterator it;
+
+// 	idx = 0;
+// 	while (idx < target.size())
+// 	{
+// 		it = target.begin();
+// 		if (charset.find(target[idx]) == std::string::npos)
+// 			break;
+// 		target.erase(it + idx);
+// 	}
+
+// 	idx = target.size() - 1;
+// 	while (idx >= 0)
+// 	{
+// 		it = target.begin();
+// 		if (charset.find(target[idx]) == std::string::npos)
+// 			break;
+// 		target.erase(it + idx);
+// 		--idx;
+// 	}
+// 	return target;
+// }
 
 std::string RequestParser::tolowerStr(const char *str)
 {
