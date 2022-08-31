@@ -151,7 +151,7 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 																		 const std::string &line,
 																		 const size_t headerbufSize)
 {
-	std::vector<std::string> headerTokenSet;
+	std::string headerToken;
 	std::vector<std::string> tmp;
 	std::string tmpstring;
 	/**
@@ -165,26 +165,23 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	 */
 	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
 		throw(431); // rfc6585.5
-	headerTokenSet = RequestParser::splitStr(line, "\r\n");
-	for (size_t i = 0; i < headerTokenSet.size(); i++)
+	headerToken = RequestParser::trimStr(const_cast<std::string &>(line), "\r\n");
+	tmp = RequestParser::splitStr(headerToken, ":");
+	if (tmp.size() < 2 || RequestParser::checkHeaderFieldnameHasSpace(tmp[0]))
+		throw(400);
+	if (tmp[0].length() > RequestParser::maxHeaderFieldSize)
+		throw(431);
+	tmp[0] = RequestParser::tolowerStr(tmp[0].c_str());
+	tmp[1] = line;
+	tmp[1] = RequestParser::trimStr(tmp[1].erase(0, tmp[0].size() + 1), " ");
+	if (RequestParser::checkHeaderFieldContain(headerbuf, tmp[0]))
 	{
-		tmp = RequestParser::splitStr(headerTokenSet[i], ":");
-		if (tmp.size() < 2 || RequestParser::checkHeaderFieldnameHasSpace(tmp[0]))
-			throw(400);
-		if (tmp[0].length() > RequestParser::maxHeaderFieldSize)
-			throw(431);
-		tmp[0] = RequestParser::tolowerStr(tmp[0].c_str());
-		tmp[1] = line;
-		tmp[1] = RequestParser::trimStr(tmp[1].erase(0, tmp[0].size() + 1), " ");
-		if (RequestParser::checkHeaderFieldContain(headerbuf, tmp[0]))
-		{
-			tmpstring = RequestParser::trimStr(tmp[1], " ") + std::string(", ");
-			headerbuf[tmp[0]] = tmpstring + headerbuf[tmp[0]];
-		}
-		else
-		{
-			headerbuf[tmp[0]] = RequestParser::trimStr(tmp[1], " ");
-		}
+		tmpstring = RequestParser::trimStr(tmp[1], " ") + std::string(", ");
+		headerbuf[tmp[0]] = tmpstring + headerbuf[tmp[0]];
+	}
+	else
+	{
+		headerbuf[tmp[0]] = RequestParser::trimStr(tmp[1], " ");
 	}
 
 #if DEBUG > 2
