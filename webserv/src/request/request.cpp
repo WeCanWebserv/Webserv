@@ -36,6 +36,7 @@ size_t Request::countParsedOctets(const std::string &line, const size_t &initial
 int Request::fillBuffer(const char *octets, size_t octetSize)
 {
 	std::string line;
+	std::string tmp;
 	size_t parsedLength;
 	size_t initialLength;
 
@@ -43,13 +44,17 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 	this->requestMessageSize += octetSize;
 	parsedLength = 0;
 	initialLength = this->buf.str().length();
-	this->buf << octets;
+	tmp.append(octets, octetSize);
+	this->buf << tmp;
 	try
 	{
 		while (this->parseStage != Request::STAGE_BODY && std::getline(this->buf, line))
 		{
 			if (checkLineFinishedWithoutNewline(this->buf)) // line이 덜 끝난 경우(= 개행 없이 끝난 경우)
+			{
+				doRequestEpilogue(line);
 				break;
+			}
 			parsedLength += countParsedOctets(line, initialLength);
 			initialLength = 0;
 			switch (this->parseStage)
@@ -71,7 +76,8 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 				{
 					RequestParser::headerParser(header, headerbuf, startline.method);
 					setParseStage(
-							Request::STAGE_BODY); // body로 가거나 끝나거나 check -> body parser에서 진행됨. 이미 관련 validation을 다 해둔 상태임
+							Request::
+									STAGE_BODY); // body로 가거나 끝나거나 check -> body parser에서 진행됨. 이미 관련 validation을 다 해둔 상태임
 				}
 				break;
 			default:
@@ -83,20 +89,20 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 		if (this->parseStage == Request::STAGE_BODY)
 		{
 			std::vector<char> bodyOctets(octets + parsedLength, octets + octetSize);
-			RequestParser::bodyParser(body, bodyOctets, header);
-			/**
-			 * TODO: content-length인지 chunked transfer-encoding인지 확인
-			 * TODO: content-length와 chunked message 관련 오류를 꼼꼼히 확인할 것 -> incomplete message를 판별해야 한다.
-			 */
-			// RequestParser::bodyParser(body, header.getHeaderMap(), octets, parsedLength, octetSize);
-			// if (body->end())
-			// 	setParseStage(STAGE_DONE);
+			if (RequestParser::bodyParser(body, bodyOctets, header) >= 0)
+			{
+				// TODO: 0보다 클 때 (body를 다 읽고 남을 때: HTTP Piping 때문에)에 대한 처리를 해줘야 함
+				this->parseStage = Request::STAGE_DONE;
+#if DEBUG
+				body.print();
+#endif
+			}
 		}
 	}
 	catch (int code)
 	{
 		std::cerr << "error code: " << code << std::endl;
-		return 1;
+		return -1;
 	}
 	return (this->parseStage == Request::STAGE_DONE);
 }

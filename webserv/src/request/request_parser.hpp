@@ -11,12 +11,13 @@
 struct RequestParser
 {
 	static void startlineParser(Startline &startline, const std::string &str);
-	static void headerParser(Header &header, std::map<std::string, std::string> &headerbuf,
+	static void headerParser(Header &header,
+													 std::map<std::string, std::string> &headerbuf,
 													 const std::string &method);
 	static void fillHeaderBuffer(std::map<std::string, std::string> &headerbuf,
 															 const std::string &str,
 															 const size_t headerbufSize);
-	static void bodyParser(Body& body, std::vector<char> &bodyOctets, Header& header);
+	static ssize_t bodyParser(Body &body, std::vector<char> &bodyOctets, Header &header);
 
 private:
 	static std::vector<std::string> methodTokenSet;
@@ -36,14 +37,18 @@ private:
 	 * header parser util
 	 */
 	static bool checkHeaderFieldnameHasSpace(const std::string &fieldname);
-	static bool checkHeaderFieldContain(const std::map<std::string, std::string> &headerbuf,
+	static bool checkHeaderFieldContain(std::map<std::string, std::string> &headerbuf,
 																			const std::string str);
 	static void headerValueParser(std::vector<FieldValue> &fieldvalue, const std::string &headerValue);
 	static void headerValueDescriptionParser(std::map<std::string, std::string> &descriptions,
-															std::vector<std::string> &descriptionsTokenSet);
-	static int chunkedBodyParser(Body& body, std::vector<char>& bodyOctets);
-	static int contentLengthBodyParser(Body& body, std::vector<char>& bodyOctets, Header& header);
-
+																					 std::vector<std::string> &descriptionsTokenSet);
+	/**
+	 * body parser util
+	 */
+	static ssize_t chunkedBodyParser(Body &body, std::vector<char> &bodyOctets);
+	static ssize_t contentLengthBodyParser(Body &body, std::vector<char> &bodyOctets, Header &header);
+	static ssize_t parseChunkedLengthLine(Body &body, std::vector<char> &bodyOctets, std::vector<char> &lineBuffer);
+	static ssize_t parseChunkedContentLine(Body &body, std::vector<char> &bodyOctets, std::vector<char> &lineBuffer, ssize_t lineLength);
 
 	/**
 	 * uri parser util
@@ -53,12 +58,12 @@ private:
 	static bool checkURIAuthorityForm(std::string &uri, const std::string &token, const std::string &method);
 	static bool checkURIAsteriskForm(std::string &uri, const std::string &token, const std::string &method);
 
-	static size_t findToken(const std::string &token, const std::vector<std::string> &tokenset);
+	static ssize_t findToken(const std::string &token, const std::vector<std::string> &tokenset);
 	static std::vector<std::string> splitStr(const std::string &token, const char *delimiter);
 	static std::string &trimStr(std::string &target, const std::string &charset);
-	static std::string tolowerStr(const char* str);
-	static char* vecToCstr(const std::vector<char>& vec, size_t size);
-	static std::vector<char> cstrToVec(const char* cstr, size_t size);
+	static std::string tolowerStr(const char *str);
+	static char *vecToCstr(const std::vector<char> &vec, size_t size);
+	static std::vector<char> cstrToVec(const char *cstr, size_t size);
 };
 
 #endif

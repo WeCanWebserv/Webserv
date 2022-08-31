@@ -93,16 +93,20 @@ struct Header
 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
 				 it != headerMap.end(); it++)
 		{
-			std::cout << "[" << it->first << "] " << "\n";
+			std::cout << "[" << it->first << "] "
+								<< "\n";
 			for (size_t i = 0; i < it->second.size(); i++)
 			{
-				std::cout << "\t" << "value[" << i << "]: " << (it->second)[i].value << std::endl;
+				std::cout << "\t"
+									<< "value[" << i << "]: " << (it->second)[i].value << std::endl;
 				size_t j = 0;
-				for (std::map<std::string, std::string>::iterator descit = (it->second)[i].descriptions.begin();
-				 descit != (it->second)[i].descriptions.end(); descit++)
-				 {
-					std::cout << "\t- description[" << j++ << "]: " << descit->first << " = " << descit->second << std::endl;
-				 }
+				for (std::map<std::string, std::string>::iterator descit =
+								 (it->second)[i].descriptions.begin();
+						 descit != (it->second)[i].descriptions.end(); descit++)
+				{
+					std::cout << "\t- description[" << j++ << "]: " << descit->first << " = "
+										<< descit->second << std::endl;
+				}
 			}
 		}
 	}
