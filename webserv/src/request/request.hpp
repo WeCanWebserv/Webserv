@@ -2,6 +2,7 @@
 #define __FT_REQUEST_H__
 
 #include "body.hpp"
+#include "field_value.hpp"
 #include "header.hpp"
 #include "request_parser.hpp"
 #include "startline.hpp"
@@ -24,6 +25,8 @@ private:
 		STAGE_DONE
 	};
 
+	typedef std::vector<FieldValue> FieldValueList;
+
 	Startline startline;
 	Header header;
 	Body body;
@@ -36,16 +39,19 @@ private:
 
 public:
 	Request();
-	// ~Request(); // remove buffer
+	// ~Request();
 	int fillBuffer(const char *octets, size_t len);
 	int ready(void); // return 1 when message completed
+	const Startline& getStartline(void) const;
+	const Header& getHeader(void) const;
+	const Body& getBody(void) const;
 
 private:
 	void setParseStage(ParseStage stage);
 	bool detectSectionDelimiter(std::string &line);
 	bool checkLineFinishedWithoutNewline(std::stringstream &buf);
 	void doRequestEpilogue(std::string &line);
-	size_t countParsedOctets(const std::string& line, const size_t& initialBufferLength);
+	size_t countParsedOctets(const std::string &line, const size_t &initialBufferLength);
 };
 
 #endif

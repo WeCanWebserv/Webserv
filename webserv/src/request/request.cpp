@@ -112,3 +112,16 @@ int Request::ready(void)
 {
 	return this->parseStage == Request::STAGE_DONE;
 }
+
+const Startline &Request::getStartline(void) const
+{
+	return this->startline;
+}
+const Header &Request::getHeader(void) const
+{
+	return this->header;
+}
+const Body &Request::getBody(void) const
+{
+	return this->body;
+}

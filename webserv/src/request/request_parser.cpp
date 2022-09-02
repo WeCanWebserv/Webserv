@@ -263,7 +263,7 @@ void RequestParser::headerParser(Header &header,
 			 it != headerbuf.end(); it++)
 	{
 		RequestParser::headerValueParser(fieldvalueVec, it->second);
-		header.headerMap[tolowerStr(it->first.c_str())] = fieldvalueVec;
+		header.insertField(std::make_pair(it->first, fieldvalueVec));
 		fieldvalueVec.clear();
 	}
 	if (!RequestParser::validateHeaderField(header))
@@ -332,8 +332,9 @@ bool RequestParser::validateHeaderField(Header &header)
 	 * transfer-encoding: chunked, compress, deflate, gzip 중 하나
 	 * connection: keep-alive, close 둘중 하나만
 	 */
-	for (std::map<std::string, std::vector<FieldValue> >::iterator it = header.headerMap.begin();
-			 it != header.headerMap.end(); it++)
+	for (std::map<std::string, std::vector<FieldValue> >::const_iterator it =
+					 header.getHeaderMap().begin();
+			 it != header.getHeaderMap().end(); it++)
 	{
 		// RequestParser::checkAllValueIsSame();
 
@@ -361,7 +362,7 @@ bool RequestParser::checkHeaderFieldnameHasSpace(const std::string &fieldname)
 bool RequestParser::checkHeaderFieldContain(std::map<std::string, std::string> &headerbuf,
 																						const std::string fieldname)
 {
-	return (headerbuf[tolowerStr(fieldname.c_str())].size() > 0);
+	return (headerbuf.count(tolowerStr(fieldname.c_str())) > 0);
 }
 
 /**
@@ -369,19 +370,16 @@ bool RequestParser::checkHeaderFieldContain(std::map<std::string, std::string> &
  */
 ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Header &header)
 {
-	if (header.headerMap[tolowerStr("Transfer-Encoding")].size())
+	if (header.hasField("Transfer-Encoding"))
 	{
-		std::vector<FieldValue> values = header.headerMap[tolowerStr("Transfer-Encoding")];
-		for (size_t i = 0; i < values.size(); i++)
-		{
-			if (values[i].value == "chunked")
-				return RequestParser::chunkedBodyParser(body, bodyOctets);
-		}
+		if (header.hasFieldValue("Transfer-Encoding", "chunked"))
+			return RequestParser::chunkedBodyParser(body, bodyOctets);
 	}
-	else if (header.headerMap[tolowerStr("Content-Length")].size())
+	else if (header.hasField("Content-Length"))
 	{
 		return RequestParser::contentLengthBodyParser(body, bodyOctets, header);
 	}
+
 	/**
 	 * GET이나 HEAD일 경우에 해당한다.
 	 * 나머지 경우는 HeaderParser가 완성된 후로 validation을 완료 하였다.
@@ -392,42 +390,40 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 
 void RequestParser::postBodyParser(Body &body, Header &header)
 {
-	std::vector<FieldValue> fieldValueVec = header.headerMap[tolowerStr("Content-Type")];
-	std::string boundary;
-	bool isMultipart;
+	std::pair<FieldValue, bool> resultValue;
+	resultValue = header.findFieldValue("Content-Type", "multipart/form-data");
+	if (!resultValue.second)
+		return;
 
-	isMultipart = false;
-	for (size_t i = 0; i < fieldValueVec.size(); i++)
+	std::map<std::string, std::string>::const_iterator resultDescription;
+	if ((resultDescription = header.findValueDescription(resultValue.first, "boundary")) ==
+			resultValue.first.descriptions.end())
 	{
 		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body";
 		throw(400);
 	}
-	if (!isMultipart)
-		return;
+
+	std::string boundary;
+	boundary = resultDescription->second;
 	RequestParser::parseMultipartBody(body, boundary);
 }
 
 void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 {
-#if DEBUG > 1
-	std::cout << "[ " << __FUNCTION__ << " ]" << std::endl;
-#endif
 	std::vector<std::string> bodySet;
 	std::string rawdata;
 
 	rawdata.append(body.payload.begin(), body.payload.end());
+	std::cout << rawdata << std::endl;
 	bodySet = splitStrStrict(rawdata, boundary.c_str(), boundary.length());
+	if (!bodySet.size())
+		return;
 	for (size_t i = 0; i < bodySet.size() - 1; i++)
-	{
 		RequestParser::parseMultipartEachBody(body, trimStr(bodySet[i], "\r\n"));
-	}
 }
 
 void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBody)
 {
-#if DEBUG > 1
-	std::cout << "[ " << __FUNCTION__ << " ]" << std::endl;
-#endif
 	std::map<std::string, std::string> headerbuf;
 	std::vector<std::string> sectionSet;
 	std::stringstream ss;
@@ -518,29 +514,40 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 
 	for (i = 0; i < bodyOctets.size(); i++)
 	{
-		if (bodyOctets[i] == '\r')
+		if (bodyOctets[i] == '\r' || bodyOctets[i] == '\n')
 		{
-			if (i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
+			bool lineDoneFlag = false;
+
+			if (bodyOctets[i] == '\n')
+			{
+				if (lineBuffer[lineBuffer.size() - 1] == '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
+				{
+					lineBuffer.pop_back();
+					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
+					lineDoneFlag = true;
+				}
+				else
+				{
+					Logger::debug(LOG_LINE) << "Chunked body does not end with '\\r\\n'";
+					throw(400);
+				}
+			}
+			else
+			{
+				if (bodyOctets[i] == '\r' && i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
+				{
+					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
+					lineDoneFlag = true;
+				}
+				else
+					lineBuffer.push_back(bodyOctets[i]);
+			}
+			if (lineDoneFlag)
 			{
 				body.setParseFlag(Body::CHUNKED_CONTENT);
-				bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
 				length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
 				lineBuffer.clear();
 			}
-			else
-				lineBuffer.push_back(bodyOctets[i]);
-			break;
-		}
-		if (bodyOctets[i] == '\n')
-		{
-			if (lineBuffer[lineBuffer.size() - 1] != '\r')
-				throw(400);
-			else
-				lineBuffer.pop_back();
-			body.setParseFlag(Body::CHUNKED_CONTENT);
-			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
-			length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
-			lineBuffer.clear();
 			break;
 		}
 		if (!::isxdigit(bodyOctets[i]))
@@ -589,7 +596,7 @@ RequestParser::contentLengthBodyParser(Body &body, std::vector<char> &bodyOctets
 	size_t remainPayloadSize;
 	size_t inputPayloadSize;
 
-	targetSize = ::strtol(header.headerMap[tolowerStr("Content-Length")][0].value.c_str(), NULL, 10);
+	targetSize = ::strtol(header.findFieldValueList("Content-Length")[0].value.c_str(), NULL, 10);
 	remainPayloadSize = targetSize - body.payload.size();
 	inputPayloadSize = bodyOctets.size();
 	if (remainPayloadSize >= inputPayloadSize)

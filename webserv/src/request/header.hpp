@@ -18,9 +18,24 @@ struct Header
 	 * 		std::string value;
 	 * 		std::map<std::string, std::string> descriptions;
 	 * };
-	*/	
-	std::map<std::string, std::vector<FieldValue> > headerMap;
+	*/
+private:
+	typedef std::map<std::string, std::string> DescriptionMap;
+	typedef std::vector<FieldValue> FieldValueList;
+	typedef std::map<std::string, FieldValueList> HeaderMap;
+	HeaderMap headerMap;
 
+public:
+	/**
+	 * getHeaderMap
+	* insertField
+	* hasField
+	* findField
+	* findFieldValueList
+	* hasFieldValue
+	* findFieldValue
+	* findValueDescription
+	*/
 	Header()
 	{
 		std::vector<std::string> tokenvec;
@@ -77,11 +92,8 @@ struct Header
 
 		std::vector<std::string>::iterator end = tokenvec.end();
 		for (size_t i = 0; i < tokenvec.size(); i++)
-		{
-			std::transform(tokenvec[i].begin(), tokenvec[i].end(), tokenvec[i].begin(), ::tolower);
-			headerMap[tokenvec[i]];
-		}
-#if DEBUG>1
+			headerMap[tolowerStr(tokenvec[i])];
+#if DEBUG > 1
 		size_t i = 0;
 		std::cout << "[ Predefined Header Fields ]\n";
 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
@@ -92,6 +104,60 @@ struct Header
 		}
 		std::cout << "\n";
 #endif
+	}
+
+	const HeaderMap &getHeaderMap(void) const
+	{
+		return this->headerMap;
+	}
+
+	void insertField(const std::pair<std::string, FieldValueList> &field)
+	{
+		this->headerMap[tolowerStr(field.first)] = field.second;
+	}
+
+	bool hasField(const std::string &fieldname) const
+	{
+		return (this->findFieldValueList(tolowerStr(fieldname)).size() > 0);
+	}
+
+	HeaderMap::const_iterator findField(const std::string &fieldname) const
+	{
+		return headerMap.find(tolowerStr(fieldname));
+	}
+
+	const FieldValueList &findFieldValueList(const std::string &fieldname) const
+	{
+		return headerMap.find(tolowerStr(fieldname))->second;
+	}
+
+	bool hasFieldValue(const std::string &fieldname, const std::string &value) const
+	{
+		FieldValueList values = this->findFieldValueList(fieldname);
+		for (size_t i = 0; i < values.size(); i++)
+		{
+			if (values[i].value == value)
+				return true;
+		}
+		return false;
+	}
+
+	std::pair<FieldValue, bool>
+	findFieldValue(const std::string &fieldname, const std::string &value) const
+	{
+		FieldValueList values = this->findFieldValueList(fieldname);
+		for (size_t i = 0; i < values.size(); i++)
+		{
+			if (values[i].value == value)
+				return std::make_pair(values[i], true);
+		}
+		return std::make_pair(FieldValue(), false);
+	}
+
+	const DescriptionMap::const_iterator
+	findValueDescription(const FieldValue &fieldvalue, const std::string &description) const
+	{
+		return fieldvalue.descriptions.find(tolowerStr(description));
 	}
 
 #if DEBUG
@@ -120,6 +186,14 @@ struct Header
 		}
 	}
 #endif
+private:
+	std::string tolowerStr(const std::string &str) const
+	{
+		std::string copystr = str;
+
+		std::transform(copystr.begin(), copystr.end(), copystr.begin(), ::tolower);
+		return copystr;
+	}
 };
 
 #endif
