@@ -4,37 +4,42 @@
 #include <sys/epoll.h>
 
 #include <map>
+#include <set>
 
-#include "ConfigInfo.hpp"
+#include "Config.hpp"
 #include "Connection.hpp"
 
 #ifndef BUFFER_SIZE
 #define BUFFER_SIZE 32768
 #endif // BUFFER_SIZE
 
-#define MAX_EVENTS 1024
-#define MAX_BACKLOGS 42
+#define DEFAULT_PATH "../config/default.conf"
+#define MAX_EVENTS 128
+#define MAX_BACKLOGS 128
 
 class ServerManager
 {
 public:
+	static const char *gDefaultPath;
 	static const int gMaxEvents = MAX_EVENTS;
 	static const int gBackLog = MAX_BACKLOGS;
 
 private:
-	typedef std::map<int, ConfigInfo> server_container_type;
+	typedef std::map<int, const ServerConfig> server_container_type;
 	typedef std::map<int, Connection> connection_container_type;
 
 	char buffer[BUFFER_SIZE];
-	int epollFd;
-	server_container_type servers;
 	connection_container_type connections;
+	server_container_type servers;
+	std::set<int> fdInUse;
+	int epollFd;
 
 public:
-	ServerManager(const char *path);
+	ServerManager(const char *path = DEFAULT_PATH);
 	~ServerManager();
 
 	void loop();
+	void clear();
 
 protected:
 	// used in connect()
@@ -46,8 +51,8 @@ protected:
 	int modifyEvent(int clientFd, struct epoll_event &event, int option);
 	void connect(int serverFd);
 	void disconnect(int clientFd);
-	int receive(int cliendfd);
-	int send(int clinetfd);
+	int receive(int fd);
+	int send(int fd);
 
 private:
 	ServerManager();

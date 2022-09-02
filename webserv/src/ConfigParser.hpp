@@ -1,170 +1,119 @@
 #ifndef CONFIGPARSER_HPP
 #define CONFIGPARSER_HPP
 
-#include "ConfigInfo.hpp"
-#include "Location.hpp"
+#include <fstream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
 
-#include <iostream>
-#include <stdexcept>
+#include "Config.hpp"
 
-class ConfigParser
+struct LocationBlock
+{
+	std::vector<std::string> directives;
+	bool isInBlock;
+
+	LocationBlock() : isInBlock(false) {}
+};
+
+struct ServerBlock
+{
+	std::vector<std::string> directives;
+	bool isInBlock;
+
+	std::map<std::string, LocationBlock> locationBlocks;
+	std::string currentUri;
+
+	ServerBlock() : isInBlock(false) {}
+};
+
+class ConfigContext
+{
+public:
+	enum eConfigContext
+	{
+		CONTEXT_NON,
+		CONTEXT_SERVER,
+		CONTEXT_LOCATION
+	};
+};
+
+struct ConfigBlock : public ConfigContext
+{
+	std::vector<std::string> directives;
+	bool isInBlock;
+
+	std::vector<ServerBlock> serverBlocks;
+	int context;
+
+	ConfigBlock() : context(CONTEXT_NON), isInBlock(false) {}
+};
+
+class ConfigParser : public ConfigContext
 {
 private:
-	const char *path;
-	std::stringstream strBuf;
-
-	int __getTokenType(const std::string &tokenStr)
-	{
-		if (tokenStr == "server_name")
-			return CONF_SERVER_NAME;
-
-		else if (tokenStr == "host")
-			return CONF_HOST;
-
-		else if (tokenStr == "port")
-			return CONF_PORT;
-
-		else if (tokenStr == "error_page")
-			return CONF_ERROR_PAGE;
-
-		else if (tokenStr == "location")
-			return CONF_LOCATION;
-
-		else
-			return CONF_INVALID;
-	}
+	std::ifstream configFile;
+	Config config;
 
 public:
-	enum ConfigType
-	{
-		CONF_SERVER_NAME,
-		CONF_HOST,
-		CONF_PORT,
-		CONF_ERROR_PAGE,
-		CONF_LOCATION,
-		CONF_INVALID
-	};
+	ConfigParser(const char *path);
+	~ConfigParser();
 
-	ConfigParser(const char *path) : path(path), strBuf(path)
-	{
-		if (!strBuf)
-		{
-			std::cerr << "file not found\n" << std::endl;
-		}
-	}
+	const Config &getConfig() const;
 
-	Location getLocation(std::stringstream &strBuf)
-	{
-		Location location;
-		std::string token;
+protected:
+	void populate();
 
-		strBuf >> location.path;
-		strBuf >> token;
-		while (!token.empty() && token != "}")
-		{
-			if (token == "root")
-			{
-				strBuf >> location.root;
-			}
-			else if (token == "allow_method")
-			{
-				strBuf >> token;
-				location.allowedMethods[token] = true;
-			}
-			else if (token == "index")
-			{
-				strBuf >> token;
-			}
-			else if (token == "auto_index")
-			{
-				strBuf >> token;
-				if (token == "on")
-					location.autoIndexOn = true;
-				else if (token == "off")
-					location.autoIndexOn = false;
-				else
-				{
-					// error
-				}
-			}
-			else if (token == "cgi_info")
-			{
-				strBuf >> location.cgiInfo.extension;
-				strBuf >> location.cgiInfo.binPath;
-				strBuf >> location.cgiInfo.uploadPath;
-			}
-			// else if (token == "return")
-			// {}
-			else
-			{
-				// empty
-			}
-		}
+	void fillBufferExceptComment(std::ifstream &inputStream,
+															 std::stringstream &bufferStream,
+															 char commentChar = '#');
 
-		return location;
-	}
+	void modifyBufferAroundBraket(std::stringstream &bufferStream);
+	void modifyBufferAroundLineBreak(std::stringstream &bufferStream);
 
-	ConfigInfo getInfo()
-	{
-		std::string token;
+	void reconstructBufferToLines(std::vector<std::string> &lines, std::stringstream &bufferStream);
 
-		strBuf >> token;
-		if (token != "server")
-			throw std::runtime_error("syntax wrong");
-		strBuf >> token;
-		if (token != "{")
-			throw std::runtime_error("syntax wrong");
+	void handleLineInServerBlock(ConfigBlock &configBlock, std::string &line);
+	void handleLineInLocationBlock(ConfigBlock &configBlock, std::string &line);
+	void handleLineInNoContext(ConfigBlock &configBlock, std::string &line);
 
-		strBuf >> token;
-		ConfigInfo info;
-		while (!token.empty() && token != "}")
-		{
-			switch (this->__getTokenType(token))
-			{
-			case CONF_SERVER_NAME:
-			{
-				strBuf >> info.serverName;
-				break;
-			}
-			case CONF_HOST:
-			{
-				strBuf >> info.host;
-				break;
-			}
-			case CONF_PORT:
-			{
-				strBuf >> info.port;
-				break;
-			}
-			case CONF_ERROR_PAGE:
-			{
-				int errorType;
-				std::string errorPagePath;
-				strBuf >> errorType;
-				strBuf >> errorPagePath;
-				info.errorPages.insert(make_pair(errorType, errorPagePath));
-				break;
-			}
-			case CONF_LOCATION:
-			{
-				strBuf >> token;
-				if (token != "{")
-					throw std::runtime_error("syntax wrong");
-				Location location = this->getLocation(strBuf);
-				break;
-			}
-			default:
-				break;
-			}
-		}
-
-		return ConfigInfo();
-	}
-
-	bool remain()
-	{
-		return false;
-	}
+private:
+	ConfigParser();
+	ConfigParser(const ConfigParser &other);
+	ConfigParser &operator=(const ConfigParser &other);
 };
 
 #endif // CONFIGPARSER_HPP
+
+// void populate()
+// {
+// 	std::vector<ServerConfig> &serverConfigs = this->config.serverConfigs;
+
+// 	ServerConfig server;
+// 	{
+// 		server.listennedPort = 8888;
+// 		server.listennedHost = INADDR_ANY;
+
+// 		server.listOfServerNames.push_back("example.com");
+// 		server.listOfServerNames.push_back("www.example.com");
+
+// 		server.maxRequestBodySize = 10240;
+// 		server.tableOfErrorPages.insert(std::make_pair(501, "/error/50x.html"));
+// 		server.tableOfErrorPages.insert(std::make_pair(502, "/error/50x.html"));
+
+// 		LocationConfig &location = server.tableOfLocations["/"];
+// 		{
+// 			location.root = "/usr/src/webserv";
+
+// 			location.indexFiles.push_back("index.html");
+// 			location.indexFiles.push_back("index.htm");
+
+// 			location.tableOfCgiBins.insert(std::make_pair(".php", "/usr/local/opt/php"));
+// 			location.tableOfCgiBins.insert(std::make_pair(".py", "/usr/local/opt/python@3.10"));
+
+// 			location.tableOfCgiUploads.insert(std::make_pair(".py", "/usr/local/upload"));
+// 		}
+// 	}
+// 	serverConfigs.push_back(server);
+// }
