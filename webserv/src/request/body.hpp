@@ -11,6 +11,16 @@ struct Body
 {
 	std::vector<char> payload;
 	std::vector<std::pair<Header, std::vector<char> > > multipartFormData;
+
+	static std::string vecToStr(std::vector<char> vec)
+	{
+		return (std::string(vec.begin(), vec.end()));
+	}
+	static std::vector<char> vecToStr(const std::string &str)
+	{
+		return (std::vector<char>(str.begin(), str.end()));
+	}
+
 	enum ParseFlag
 	{
 		CHUNKED_LENGTH,
