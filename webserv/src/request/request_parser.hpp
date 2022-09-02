@@ -77,8 +77,6 @@ private:
 	static std::string &trimStr(std::string &target, const std::string &charset);
 	static std::string &trimStrStrict(std::string &target, const std::string &charset);
 	static std::string tolowerStr(const char *str);
-	static char *vecToCstr(const std::vector<char> &vec, size_t size);
-	static std::vector<char> cstrToVec(const char *cstr, size_t size);
 };
 
 #endif

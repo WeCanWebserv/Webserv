@@ -416,7 +416,7 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 	if (sectionSet.size() == 1)
 	{
 		body.multipartFormData.push_back(
-				std::make_pair(Header(), cstrToVec(sectionSet[0].c_str(), sectionSet[0].size())));
+				std::make_pair(Header(), std::vector<char>(sectionSet[0].begin(), sectionSet[0].end())));
 		return;
 	}
 	if (sectionSet.size() != 2)
@@ -438,7 +438,7 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 	eachHeader.print();
 #endif
 	body.multipartFormData.push_back(
-			std::make_pair(eachHeader, cstrToVec(sectionSet[1].c_str(), sectionSet[1].size())));
+			std::make_pair(eachHeader, std::vector<char>(sectionSet[1].begin(), sectionSet[1].end())));
 }
 
 ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOctets)
@@ -500,10 +500,8 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 			{
 				body.setParseFlag(Body::CHUNKED_CONTENT);
 				bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
-				const char *cstr = RequestParser::vecToCstr(lineBuffer, lineBuffer.size());
-				length = ::strtol(cstr, NULL, 16);
+				length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
 				lineBuffer.clear();
-				delete[] cstr;
 			}
 			else
 				lineBuffer.push_back(bodyOctets[i]);
@@ -517,10 +515,8 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 				lineBuffer.pop_back();
 			body.setParseFlag(Body::CHUNKED_CONTENT);
 			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
-			const char *cstr = RequestParser::vecToCstr(lineBuffer, lineBuffer.size());
-			length = ::strtol(cstr, NULL, 16);
+			length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
 			lineBuffer.clear();
-			delete[] cstr;
 			break;
 		}
 		if (!::isxdigit(bodyOctets[i]))
@@ -700,24 +696,6 @@ std::string RequestParser::tolowerStr(const char *str)
 	copystr = str;
 	std::transform(copystr.begin(), copystr.end(), copystr.begin(), ::tolower);
 	return copystr;
-}
-
-/**
- * @description: do memory allocation
- */
-char *RequestParser::vecToCstr(const std::vector<char> &vec, size_t size)
-{
-	char *octets;
-
-	octets = new char[size + 1];
-	memcpy(octets, &vec[0], size);
-	octets[size] = '\0';
-	return octets;
-}
-
-std::vector<char> RequestParser::cstrToVec(const char *cstr, size_t size)
-{
-	return (std::vector<char>(cstr, cstr + size));
 }
 
 std::vector<std::string> RequestParser::initMethodTokenSet(void)

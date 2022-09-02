@@ -38,7 +38,7 @@ public:
 	Request();
 	// ~Request(); // remove buffer
 	int fillBuffer(const char *octets, size_t len);
-	int end(void); // return 1 when message completed
+	int ready(void); // return 1 when message completed
 
 private:
 	void setParseStage(ParseStage stage);
