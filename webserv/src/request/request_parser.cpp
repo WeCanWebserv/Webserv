@@ -534,7 +534,7 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 			}
 			else
 			{
-				if (bodyOctets[i] == '\r' && i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
+				if (i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
 				{
 					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
 					lineDoneFlag = true;
@@ -570,11 +570,11 @@ ssize_t RequestParser::parseChunkedContentLine(Body &body,
 
 	for (i = 0; i < bodyOctets.size(); i++)
 	{
-		if (i + savedlength == lineLength)
+		if (i + savedlength == lineLength + 2) // \r\n을 받기 위해
 		{
-			body.payload.insert(body.payload.end(), lineBuffer.begin(), lineBuffer.end());
+			body.payload.insert(body.payload.end(), lineBuffer.begin(), lineBuffer.end() - 2);
 			lineBuffer.clear();
-			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + i + 2); // \r\n도 지우기 위해
+			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + i);
 			return (0);
 		}
 		lineBuffer.push_back(bodyOctets[i]);
