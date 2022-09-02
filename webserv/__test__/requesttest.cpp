@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <unistd.h>
+#include "../src/Logger.hpp"
 
 #define EXAMPLE1                                                                                   \
 	"GET / HTTP/1.1\n\
@@ -42,6 +43,7 @@ int main(void)
 	// test("CONNECT www.example.com:80 HTTP/1.1\nHost: www.example.com \nContent-Type: "
 	// 		 "plain/text\nContent-Length: 234\nContent-Length: 234\n\n",
 	// 		 16);
+	Logger::init(Logger::LOGLEVEL_DEBUG, "/dev/stderr");
 	test("POST / HTTP/1.1\n\
 Host: localhost:8000\n\
 User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:29.0) Gecko/20100101 Firefox/29.0\n\
@@ -70,20 +72,20 @@ Content-Type: text/html\r\n\
 <!DOCTYPE html><title>Content of a.html.</title>\r\n\
 \r\n\
 -----------------------------9051914041544843365972754266--",
-			1084 , 64);
-// 	test("CONNECT / HTTP/1.1\r\n\
-// Host: localhost\r\n\
-// Content-Type: text/plain \r\n\
-// Transfer-Encoding: chunked\r\n\
-// \r\n\
-// 7\r\n\
-// Mozilla\r\n\
-// 9\r\n\
-// Developer\r\n\
-// 7\r\n\
-// Network\r\n\
-// 0\r\n\
-// \r\n",
-// 			 16);
+			 1084, 64);
+		test("CONNECT / HTTP/1.1\r\n\
+Host: localhost\r\n\
+Content-Type: text/plain \r\n\
+Transfer-Encoding: chunked\r\n\
+\r\n\
+7\r\n\
+Mozilla\r\n\
+9\r\n\
+Developer\r\n\
+7\r\n\
+Network\r\n\
+0\r\n\
+\r\n",
+				 137,16);
 	system("leaks a.out");
 }

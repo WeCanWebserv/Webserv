@@ -1,4 +1,5 @@
 #include "request_parser.hpp"
+#include "../Logger.hpp"
 #include "field_value.hpp"
 
 #include <cstdlib>
@@ -19,19 +20,19 @@ void RequestParser::startlineParser(Startline &startline, const std::string &lin
 	std::vector<std::string> startlineTokenSet;
 
 	startlineTokenSet = splitStr(line, " ");
-	if (startlineTokenSet.size() > 3)
+	if (startlineTokenSet.size() != 3)
+	{
+		Logger::debug(LOG_LINE) << "Startline token count is not 3";
 		throw(400);
+	}
 
 	RequestParser::startlineMethodParser(startline.method, startlineTokenSet[0]);
 	RequestParser::startlineURIParser(startline.uri, startlineTokenSet[1], startline.method);
 	RequestParser::startlineHTTPVersionParser(startline.httpVersion,
 																						trimStr(startlineTokenSet[2], "\r"));
-#if DEBUG
-	std::cout << "[startline]\n";
-	std::cout << "startline method: " << startline.method << std::endl;
-	std::cout << "startline URI: " << startline.uri << std::endl;
-	std::cout << "startline HTTPversion: " << startline.httpVersion << "\n\n";
-#endif
+	Logger::log(Logger::LOGLEVEL_INFO)
+			<< "\n[ Parsed Startline Info ]\nMethod: " << startline.method << "\nURI: " << startline.uri
+			<< "\nHTTP Version: " << startline.httpVersion << "\n\n";
 }
 
 void RequestParser::startlineMethodParser(std::string &method, const std::string &token)
@@ -42,7 +43,10 @@ void RequestParser::startlineMethodParser(std::string &method, const std::string
 	 *  case-sensitive로 확인해야 한다.
 	 */
 	if ((idx = findToken(token, RequestParser::methodTokenSet)) < 0)
+	{
+		Logger::debug(LOG_LINE) << "No match method in Method Tokens";
 		throw(400);
+	}
 	method = RequestParser::methodTokenSet[idx];
 }
 
@@ -66,7 +70,10 @@ void RequestParser::startlineURIParser(std::string &uri,
 	result = result || RequestParser::checkURIAuthorityForm(uri, token, method);
 	result = result || RequestParser::checkURIAsteriskForm(uri, token, method);
 	if (!result)
+	{
+		Logger::debug(LOG_LINE) << "No matched uri form";
 		throw(400);
+	}
 }
 
 bool RequestParser::checkURIOriginForm(std::string &uri, const std::string &token)
@@ -74,12 +81,10 @@ bool RequestParser::checkURIOriginForm(std::string &uri, const std::string &toke
 	std::string::const_reverse_iterator rit1;
 	std::string::const_reverse_iterator rit2;
 
-	/** 
+	/**
 	 * absolute-path [ "?" query ]
 	 * ex) /where?q=now&name=hihi
 	 */
-	if (!token.size())
-		throw(400);
 	if (token[0] != '/')
 		return false;
 	/**
@@ -140,10 +145,16 @@ void RequestParser::startlineHTTPVersionParser(std::string &httpVersion, const s
 	 */
 	tokenset = splitStr(token, "/");
 	if (tokenset[0].compare("HTTP"))
+	{
+		Logger::debug(LOG_LINE) << "Protocol is not HTTP";
 		throw(400);
+	}
 	versionTokenSet = splitStr(versionList, ", ");
 	if ((idx = findToken(tokenset[1], versionTokenSet)) < 0)
+	{
+		Logger::debug(LOG_LINE) << "Protocol version is not valid";
 		throw(400);
+	}
 	httpVersion = tokenset[1];
 }
 
@@ -160,17 +171,26 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	 * 3. field에 SP가 있으면 400 error (공격 방지를 위함)
 	 * 4. value는 ":" 바로 뒤에 오는 SP문자를 제외한 SP문자 및 CRLF 바로 앞에 오는 SP를 제외한 SP문자들을 trim 한다.
 	 * 5. header section이 모두 끝날때까지 위의 1~4번을 반복한다.
-	 * 
+	 *
 	 * header section이 끝나면 headerParser메소드에서 로직 시작
 	 */
 	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
+	{
+		Logger::debug(LOG_LINE) << "Header secion size is too long";
 		throw(431); // rfc6585.5
+	}
 	headerToken = trimStr(const_cast<std::string &>(line), "\r\n");
 	tmp = splitStr(headerToken, ":");
 	if (tmp.size() < 2 || RequestParser::checkHeaderFieldnameHasSpace(tmp[0]))
+	{
+		Logger::debug(LOG_LINE) << "Header field has space || Header field does not have field-value";
 		throw(400);
+	}
 	if (tmp[0].length() > RequestParser::maxHeaderFieldSize)
+	{
+		Logger::debug(LOG_LINE) << "Header field-name is too long";
 		throw(431);
+	}
 	tmp[0] = tolowerStr(tmp[0].c_str());
 	tmp[1] = line;
 	tmp[1] = trimStr(tmp[1].erase(0, tmp[0].size() + 1), " ");
@@ -203,7 +223,7 @@ void RequestParser::headerParser(Header &header,
  	 * header field에 없는 token은 무시하도록 하자(error가 아님)
 	 * header-field는 오로지 US_ASCII로만 encoding되어야 한다.
 	 * header-value에 대한 format은 복잡하니 정리해놓은 것을 참고할 것.
-	 * 
+	 *
 	 * 6. header section이 모두 끝나면 predefined field name에 맞지 않는 것은 누락시키고 Header 구조에 맞춰 넣는다.
 	 * 7. 그리고 field value에 대해 validation을 진행한다.
 	 * 8. invalid format이라면 해당 이유에 맞춰 status code를 throw한다.
@@ -215,7 +235,10 @@ void RequestParser::headerParser(Header &header,
 	std::vector<FieldValue> fieldvalueVec;
 
 	if (!RequestParser::checkHeaderFieldContain(headerbuf, "Host"))
+	{
+		Logger::debug(LOG_LINE) << "Header Section does not contain 'Host' field";
 		throw(400);
+	}
 	if (RequestParser::checkHeaderFieldContain(headerbuf, "Transfer-Encoding") &&
 			::strstr(headerbuf[tolowerStr("Transfer-Encoding")].c_str(), "chunked"))
 	{
@@ -230,7 +253,10 @@ void RequestParser::headerParser(Header &header,
 			std::cout << "no chunked and content-length\n";
 #endif
 			if (!(method == "GET" || method == "HEAD"))
-				throw(411); // length required error
+			{
+				Logger::debug(LOG_LINE) << "Length is required";
+				throw(411);
+			} // length required error
 		}
 	}
 	for (std::map<std::string, std::string>::const_iterator it = headerbuf.begin();
@@ -241,7 +267,10 @@ void RequestParser::headerParser(Header &header,
 		fieldvalueVec.clear();
 	}
 	if (!RequestParser::validateHeaderField(header))
+	{
+		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format";
 		throw(400);
+	}
 
 #if DEBUG > 1
 	header.print();
@@ -370,15 +399,8 @@ void RequestParser::postBodyParser(Body &body, Header &header)
 	isMultipart = false;
 	for (size_t i = 0; i < fieldValueVec.size(); i++)
 	{
-		if (fieldValueVec[i].value == "multipart/form-data")
-		{
-			boundary = fieldValueVec[i].descriptions[tolowerStr("boundary")];
-#if DEBUG
-			std::cout << "multipart/form-data boundary: " << boundary << std::endl;
-#endif
-			isMultipart = true;
-			break;
-		}
+		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body";
+		throw(400);
 	}
 	if (!isMultipart)
 		return;
@@ -421,6 +443,8 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 	}
 	if (sectionSet.size() != 2)
 	{
+		Logger::debug(LOG_LINE)
+				<< "Multipart format body does not have header-body pair || section delimiter is invalid";
 		throw(400);
 	}
 	ss << sectionSet[0]; // header는 binary data가 아니므로 string stream으로 관리해도 됨
@@ -521,7 +545,8 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 		}
 		if (!::isxdigit(bodyOctets[i]))
 		{
-			throw(400); // TODO: throw 외에 다른 예외 처리 방법 생각해보기(review 받기)
+			Logger::debug(LOG_LINE) << "Length in chunked body does not hexadecimal number";
+			throw(400);
 		}
 		lineBuffer.push_back(bodyOctets[i]);
 	}
