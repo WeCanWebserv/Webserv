@@ -33,3 +33,9 @@
 
 ## Etc
 .vscode/
+
+## test file
+**/test
+
+## private folder
+private/
