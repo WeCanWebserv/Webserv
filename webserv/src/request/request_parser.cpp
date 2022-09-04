@@ -164,13 +164,12 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 {
 	std::string headerToken;
 	std::vector<std::string> tmp;
+
 	std::string tmpstring;
 	/**
-	 * 1. header 분리 (CRLF 기준으로 header각각을 분리)
-	 * 2. header field와 value를 분리
-	 * 3. field에 SP가 있으면 400 error (공격 방지를 위함)
-	 * 4. value는 ":" 바로 뒤에 오는 SP문자를 제외한 SP문자 및 CRLF 바로 앞에 오는 SP를 제외한 SP문자들을 trim 한다.
-	 * 5. header section이 모두 끝날때까지 위의 1~4번을 반복한다.
+	 * 1. header field와 value를 분리
+	 * 2. field에 SP가 있으면 400 error (공격 방지를 위함)
+	 * 3. value는 ":" 바로 뒤에 오는 SP문자를 제외한 SP문자 및 CRLF 바로 앞에 오는 SP를 제외한 SP문자들을 trim 한다.
 	 *
 	 * header section이 끝나면 headerParser메소드에서 로직 시작
 	 */
@@ -232,6 +231,7 @@ void RequestParser::headerParser(Header &header,
 #if DEBUG > 1
 	std::cout << "header section is done\n";
 #endif
+
 	std::vector<FieldValue> fieldvalueVec;
 
 	if (!RequestParser::checkHeaderFieldContain(headerbuf, "Host"))
@@ -239,15 +239,15 @@ void RequestParser::headerParser(Header &header,
 		Logger::debug(LOG_LINE) << "Header Section does not contain 'Host' field";
 		throw(400);
 	}
-	if (RequestParser::checkHeaderFieldContain(headerbuf, "Transfer-Encoding") &&
-			::strstr(headerbuf[tolowerStr("Transfer-Encoding")].c_str(), "chunked"))
+	if (RequestParser::checkHeaderFieldContain(headerbuf, TRANSFER_ENCODING) &&
+			::strstr(headerbuf[tolowerStr(TRANSFER_ENCODING)].c_str(), "chunked"))
 	{
-		if (RequestParser::checkHeaderFieldContain(headerbuf, "Content-Length"))
-			headerbuf[tolowerStr("Transfer-Encoding")] = "";
+		if (RequestParser::checkHeaderFieldContain(headerbuf, CONTENT_LENGTH))
+			headerbuf[tolowerStr(CONTENT_LENGTH)] = "";
 	}
 	else
 	{
-		if (!RequestParser::checkHeaderFieldContain(headerbuf, "Content-Length"))
+		if (!RequestParser::checkHeaderFieldContain(headerbuf, CONTENT_LENGTH))
 		{
 #if DEBUG
 			std::cout << "no chunked and content-length\n";
@@ -255,8 +255,8 @@ void RequestParser::headerParser(Header &header,
 			if (!(method == "GET" || method == "HEAD"))
 			{
 				Logger::debug(LOG_LINE) << "Length is required";
-				throw(411);
-			} // length required error
+				throw(411); // length required error
+			}
 		}
 	}
 	for (std::map<std::string, std::string>::const_iterator it = headerbuf.begin();
@@ -271,10 +271,6 @@ void RequestParser::headerParser(Header &header,
 		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format";
 		throw(400);
 	}
-
-#if DEBUG > 1
-	header.print();
-#endif
 }
 
 void RequestParser::headerValueParser(std::vector<FieldValue> &fieldvalueVec,
@@ -333,12 +329,12 @@ bool RequestParser::validateHeaderField(Header &header)
 	 * connection: keep-alive, close 둘중 하나만
 	 */
 	for (std::map<std::string, std::vector<FieldValue> >::const_iterator it =
-					 header.getHeaderMap().begin();
-			 it != header.getHeaderMap().end(); it++)
+					 header.getFields().begin();
+			 it != header.getFields().end(); it++)
 	{
 		// RequestParser::checkAllValueIsSame();
-
-		if (it->first == tolowerStr("Content-Length"))
+		// TODO: Validation 마저 하기
+		if (it->first == tolowerStr(CONTENT_LENGTH))
 		{
 			//check isdigit
 		}
@@ -346,7 +342,7 @@ bool RequestParser::validateHeaderField(Header &header)
 		{
 			// check token
 		}
-		else if (it->first == tolowerStr("Transfer-Encoding"))
+		else if (it->first == tolowerStr(TRANSFER_ENCODING))
 		{
 			// check token
 		}
@@ -370,16 +366,15 @@ bool RequestParser::checkHeaderFieldContain(std::map<std::string, std::string> &
  */
 ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Header &header)
 {
-	if (header.hasField("Transfer-Encoding"))
+	if (header.hasField(TRANSFER_ENCODING))
 	{
-		if (header.hasFieldValue("Transfer-Encoding", "chunked"))
+		if (header.hasFieldValue(TRANSFER_ENCODING, "chunked"))
 			return RequestParser::chunkedBodyParser(body, bodyOctets);
 	}
-	else if (header.hasField("Content-Length"))
+	else if (header.hasField(CONTENT_LENGTH))
 	{
 		return RequestParser::contentLengthBodyParser(body, bodyOctets, header);
 	}
-
 	/**
 	 * GET이나 HEAD일 경우에 해당한다.
 	 * 나머지 경우는 HeaderParser가 완성된 후로 validation을 완료 하였다.
@@ -390,22 +385,19 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 
 void RequestParser::postBodyParser(Body &body, Header &header)
 {
-	std::pair<FieldValue, bool> resultValue;
-	resultValue = header.findFieldValue("Content-Type", "multipart/form-data");
-	if (!resultValue.second)
-		return;
+	FieldValue fieldvalue;
+	std::map<std::string, std::string>::const_iterator boundary;
 
-	std::map<std::string, std::string>::const_iterator resultDescription;
-	if ((resultDescription = header.findValueDescription(resultValue.first, "boundary")) ==
-			resultValue.first.descriptions.end())
+	fieldvalue = header.getFieldValue("Content-Type", "multipart/form-data");
+	if (!fieldvalue.value.size())
+		return;
+	boundary = fieldvalue.descriptions.find("boundary");
+	if (boundary == fieldvalue.descriptions.end())
 	{
 		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body";
 		throw(400);
 	}
-
-	std::string boundary;
-	boundary = resultDescription->second;
-	RequestParser::parseMultipartBody(body, boundary);
+	RequestParser::parseMultipartBody(body, boundary->second);
 }
 
 void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
@@ -414,7 +406,6 @@ void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 	std::string rawdata;
 
 	rawdata.append(body.payload.begin(), body.payload.end());
-	std::cout << rawdata << std::endl;
 	bodySet = splitStrStrict(rawdata, boundary.c_str(), boundary.length());
 	if (!bodySet.size())
 		return;
@@ -523,7 +514,9 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 				if (lineBuffer[lineBuffer.size() - 1] == '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
 				{
 					lineBuffer.pop_back();
-					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
+					bodyOctets.erase(bodyOctets.begin(),
+													 bodyOctets.begin() +
+															 (i + 1)); // TODO: 읽은 i보다 더 많이 지워도 위험하지 않은가?
 					lineDoneFlag = true;
 				}
 				else
@@ -536,7 +529,9 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 			{
 				if (i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
 				{
-					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
+					bodyOctets.erase(bodyOctets.begin(),
+													 bodyOctets.begin() +
+															 (i + 2)); // TODO: 읽은 i보다 더 많이 지워도 위험하지 않은가?
 					lineDoneFlag = true;
 				}
 				else
@@ -596,7 +591,7 @@ RequestParser::contentLengthBodyParser(Body &body, std::vector<char> &bodyOctets
 	size_t remainPayloadSize;
 	size_t inputPayloadSize;
 
-	targetSize = ::strtol(header.findFieldValueList("Content-Length")[0].value.c_str(), NULL, 10);
+	targetSize = ::strtol(header.getFieldValueList(CONTENT_LENGTH)[0].value.c_str(), NULL, 10);
 	remainPayloadSize = targetSize - body.payload.size();
 	inputPayloadSize = bodyOctets.size();
 	if (remainPayloadSize >= inputPayloadSize)

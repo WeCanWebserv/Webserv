@@ -27,7 +27,6 @@ void test(const char *buffer, ssize_t octetSize, ssize_t bufsize)
 		if (i + bufsize >= octetSize)
 			bufsize = strlen(buffer + i);
 		memcpy(ptr, &buffer[i], bufsize);
-		std::cout << "not done... reading...\n";
 		if (req.fillBuffer(ptr, bufsize) < 0)
 		{
 			std::cout << "error occured\n";
@@ -73,23 +72,23 @@ Content-Type: text/html\r\n\
 \r\n\
 -----------------------------9051914041544843365972754266--",
 			 1084, 1);
-			 std::cout << ::strlen("CONNECT / HTTP/1.1\r\n\
-Host: localhost\r\n\
-Content-Type: text/plain \r\n\
-Transfer-Encoding: chunked\r\n\
-\r\n\
-7\r\n\
-Mozilla\r\n\
-9\r\n\
-Developer\r\n\
-7\r\n\
-Network\r\n\
-0\r\n\
-\r\n") << std::endl;
+// 			 std::cout << ::strlen("CONNECT / HTTP/1.1\r\n\
+// Host: localhost\r\n\
+// Content-Type: text/plain \r\n\
+// Transfer-Encoding: chunked\r\n\
+// \r\n\
+// 7\r\n\
+// Mozilla\r\n\
+// 9\r\n\
+// Developer\r\n\
+// 7\r\n\
+// Network\r\n\
+// 0\r\n\
+// \r\n") << std::endl;
 	test("CONNECT / HTTP/1.1\r\n\
 Host: localhost\r\n\
 Content-Type: text/plain \r\n\
-Transfer-Encoding: chunked\r\n\
+Transfer-Encoding: gzip, chunked\r\n\
 \r\n\
 7\r\n\
 Mozilla\r\n\
@@ -99,7 +98,7 @@ Developer\r\n\
 Network\r\n\
 0\r\n\
 \r\n",
-			 137, 1);
+			 137, 6);
 	
 	system("leaks a.out");
 }

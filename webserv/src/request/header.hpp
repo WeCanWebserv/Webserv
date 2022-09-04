@@ -10,6 +10,18 @@
 #include <iostream>
 #endif
 
+#define TRANSFER_ENCODING "Transfer-Encoding"
+#define CONTENT_LENGTH "Content-Length"
+
+template<typename T>
+struct True : std::binary_function<T, T, T>
+{
+	bool operator()(const T &a, const T &b) const
+	{
+		return true;
+	}
+};
+
 struct Header
 {
 	/**
@@ -19,10 +31,10 @@ struct Header
 	 * 		std::map<std::string, std::string> descriptions;
 	 * };
 	*/
-private:
 	typedef std::map<std::string, std::string> DescriptionMap;
-	typedef std::vector<FieldValue> FieldValueList;
-	typedef std::map<std::string, FieldValueList> HeaderMap;
+	typedef std::map<std::string, std::vector<FieldValue>, True<std::string> > HeaderMap;
+
+private:
 	HeaderMap headerMap;
 
 public:
@@ -34,7 +46,6 @@ public:
 	* findFieldValueList
 	* hasFieldValue
 	* findFieldValue
-	* findValueDescription
 	*/
 	Header()
 	{
@@ -90,50 +101,73 @@ public:
 		tokenvec.push_back("If-None-Match");
 		tokenvec.push_back("If-Match");
 
-		std::vector<std::string>::iterator end = tokenvec.end();
-		for (size_t i = 0; i < tokenvec.size(); i++)
-			headerMap[tolowerStr(tokenvec[i])];
-#if DEBUG > 1
-		size_t i = 0;
-		std::cout << "[ Predefined Header Fields ]\n";
-		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
-				 it != headerMap.end(); it++)
-		{
-			std::cout << "[" << i << "] " << it->first << std::endl;
-			i++;
-		}
-		std::cout << "\n";
-#endif
+		// std::vector<std::string>::iterator end = tokenvec.end();
+		// for (size_t i = 0; i < tokenvec.size(); i++)
+		// 	headerMap[tolowerStr(tokenvec[i])];
+// #if DEBUG > 1
+// 		size_t i = 0;
+// 		std::cout << "[ Predefined Header Fields ]\n";
+// 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
+// 				 it != headerMap.end(); it++)
+// 		{
+// 			std::cout << "[" << i << "] " << it->first << std::endl;
+// 			i++;
+// 		}
+// 		std::cout << "\n";
+// #endif
 	}
 
-	const HeaderMap &getHeaderMap(void) const
+	const HeaderMap &getFields(void) const
 	{
 		return this->headerMap;
 	}
 
-	void insertField(const std::pair<std::string, FieldValueList> &field)
+	void insertField(const std::pair<std::string, std::vector<FieldValue> > &field)
 	{
 		this->headerMap[tolowerStr(field.first)] = field.second;
 	}
 
 	bool hasField(const std::string &fieldname) const
 	{
-		return (this->findFieldValueList(tolowerStr(fieldname)).size() > 0);
+		HeaderMap::const_iterator it;
+
+		for (it = headerMap.begin(); it != headerMap.end(); it++)
+		{
+			if (it->first == tolowerStr(fieldname))
+				return true;
+		}
+		return false;
+		// return (this->getFieldValueList(tolowerStr(fieldname)).size() > 0);
 	}
 
-	HeaderMap::const_iterator findField(const std::string &fieldname) const
+	HeaderMap::const_iterator getFieldPair(const std::string &fieldname) const
 	{
-		return headerMap.find(tolowerStr(fieldname));
+		HeaderMap::const_iterator it;
+
+		for (it = headerMap.begin(); it != headerMap.end(); it++)
+		{
+			if (it->first == tolowerStr(fieldname))
+				return it;
+		}
+		return it;
 	}
 
-	const FieldValueList &findFieldValueList(const std::string &fieldname) const
+	const std::vector<FieldValue> getFieldValueList(const std::string &fieldname) const
 	{
-		return headerMap.find(tolowerStr(fieldname))->second;
+		HeaderMap::const_iterator it;
+
+		for (it = headerMap.begin(); it != headerMap.end(); it++)
+		{
+			if (it->first == tolowerStr(fieldname))
+				return it->second;
+		}
+		return std::vector<FieldValue>();
 	}
 
 	bool hasFieldValue(const std::string &fieldname, const std::string &value) const
 	{
-		FieldValueList values = this->findFieldValueList(fieldname);
+		std::vector<FieldValue> values = this->getFieldValueList(tolowerStr(fieldname));
+
 		for (size_t i = 0; i < values.size(); i++)
 		{
 			if (values[i].value == value)
@@ -142,32 +176,25 @@ public:
 		return false;
 	}
 
-	std::pair<FieldValue, bool>
-	findFieldValue(const std::string &fieldname, const std::string &value) const
+	FieldValue getFieldValue(const std::string &fieldname, const std::string &value) const
 	{
-		FieldValueList values = this->findFieldValueList(fieldname);
+		std::vector<FieldValue> values = this->getFieldValueList(tolowerStr(fieldname));
+
 		for (size_t i = 0; i < values.size(); i++)
 		{
 			if (values[i].value == value)
-				return std::make_pair(values[i], true);
+				return values[i];
 		}
-		return std::make_pair(FieldValue(), false);
-	}
-
-	const DescriptionMap::const_iterator
-	findValueDescription(const FieldValue &fieldvalue, const std::string &description) const
-	{
-		return fieldvalue.descriptions.find(tolowerStr(description));
+		return FieldValue();
 	}
 
 #if DEBUG
 	void print(void)
 	{
-		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
-				 it != headerMap.end(); it++)
+		for (HeaderMap::iterator it = headerMap.begin(); it != headerMap.end(); it++)
 		{
-			if (!it->second.size())
-				continue;
+			// if (!it->second.size())
+			// 	continue;
 			std::cout << "[" << it->first << "] "
 								<< "\n";
 			for (size_t i = 0; i < it->second.size(); i++)
