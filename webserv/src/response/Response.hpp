@@ -1,6 +1,7 @@
 #ifndef RESPONSE_HPP
 #define RESPONSE_HPP
 
+#include <ctime>
 #include <map>
 #include <sstream>
 #include <string>
@@ -53,6 +54,7 @@ private:
 	Response(const Response &other);
 	Response &operator=(const Response &rhs);
 
+	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
 	std::string getCurrentTime() const;
 
 	template<class Locations>
@@ -62,8 +64,10 @@ private:
 	void setHeader(std::string name, std::string value);
 	void setBuffer();
 
-	void setBodyToDefaultErrorPage(int code);
+	void setBodyToDefaultPage(const std::string &html);
 	std::string generateDefaultErrorPage(int code) const;
+	std::string generateFileListPage(
+			const std::string &path, const std::vector<std::string> &files) const;
 
 	void clearBody(Body &body);
 
