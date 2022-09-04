@@ -40,6 +40,9 @@ ReasonPhrase::reasonType ReasonPhrase::initReason()
 	reason[415] = "Unsupported Media Type";
 	reason[416] = "Range Not Satisfiable";
 	reason[417] = "Expectation Failed";
+	reason[428] = "Precondition Required";
+	reason[429] = "Too Many Requests";
+	reason[431] = "Request Header Fields Too Large";
 	reason[426] = "Upgrade Required";
 	reason[500] = "Internal Server Error";
 	reason[501] = "Not Implemented";
@@ -47,6 +50,7 @@ ReasonPhrase::reasonType ReasonPhrase::initReason()
 	reason[503] = "Service Unavailable";
 	reason[504] = "Gateway Timeout";
 	reason[505] = "HTTP Version Not Supported";
+	reason[511] = "Network Authentication Required";
 	return (reason);
 }
 
