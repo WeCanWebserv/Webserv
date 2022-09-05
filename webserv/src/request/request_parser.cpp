@@ -385,6 +385,9 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 
 void RequestParser::postBodyParser(Body &body, Header &header)
 {
+#if DEBUG
+	body.print();
+#endif
 	FieldValue fieldvalue;
 	std::map<std::string, std::string>::const_iterator boundary;
 
@@ -415,41 +418,49 @@ void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 
 void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBody)
 {
-	std::map<std::string, std::string> headerbuf;
 	std::vector<std::string> sectionSet;
-	std::stringstream ss;
-	std::string line;
-	Header eachHeader;
 
 	sectionSet = splitStrStrict(eachBody, "\r\n\r\n", 4);
+	if (sectionSet.size() > 2)
+	{
+		Logger::debug(LOG_LINE)
+				<< "Multipart format body does not have header-body pair || section delimiter is invalid";
+		throw(400);
+	}
 	if (sectionSet.size() == 1)
 	{
 		body.multipartFormData.push_back(
 				std::make_pair(Header(), std::vector<char>(sectionSet[0].begin(), sectionSet[0].end())));
 		return;
 	}
-	if (sectionSet.size() != 2)
-	{
-		Logger::debug(LOG_LINE)
-				<< "Multipart format body does not have header-body pair || section delimiter is invalid";
-		throw(400);
-	}
-	ss << sectionSet[0]; // header는 binary data가 아니므로 string stream으로 관리해도 됨
+	RequestParser::parseMultipartEachHeader(body, sectionSet[0], sectionSet[1]);
+}
+
+void RequestParser::parseMultipartEachHeader(Body &body,
+																						 const std::string &headerSection,
+																						 const std::string &bodySection)
+{
+	const std::string dummyMethod = "GET";
+	const std::string dummyHostField = "localhost";
+	std::map<std::string, std::string> headerbuf;
+	std::stringstream ss;
+	std::string line;
+	Header eachHeader;
+
+	ss << headerSection; // header는 binary data가 아니므로 string stream으로 관리해도 됨
 	while (std::getline(ss, line))
 	{
 		RequestParser::fillHeaderBuffer(headerbuf, line, 0);
 		if (ss.eof())
 			break;
 	}
-	const std::string dummyMethod = "GET";
-	const std::string dummyHostField = "localhost";
 	headerbuf[tolowerStr("Host")] = dummyHostField;
 	RequestParser::headerParser(eachHeader, headerbuf, dummyMethod);
 #if DEBUG > 2
 	eachHeader.print();
 #endif
 	body.multipartFormData.push_back(
-			std::make_pair(eachHeader, std::vector<char>(sectionSet[1].begin(), sectionSet[1].end())));
+			std::make_pair(eachHeader, std::vector<char>(bodySection.begin(), bodySection.end())));
 }
 
 ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOctets)

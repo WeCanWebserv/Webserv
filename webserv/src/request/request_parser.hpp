@@ -59,6 +59,9 @@ private:
 																				 ssize_t lineLength);
 	static void parseMultipartBody(Body &body, const std::string &boundary);
 	static void parseMultipartEachBody(Body &body, const std::string &eachBody);
+	static void parseMultipartEachHeader(Body &body,
+																			 const std::string &headerSection,
+																			 const std::string &bodySection);
 
 	/**
 	 * uri parser util
