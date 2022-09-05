@@ -5,11 +5,13 @@
 
 #include <algorithm>
 #include <ctime>
+#include <utility>
 #include <vector>
 
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/epoll.h>
 #include <unistd.h>
 
 #define SERVER_NAME "webserv"
@@ -77,8 +79,11 @@ std::size_t Response::moveBufPosition(int nbyte)
 	return (getBufSize());
 }
 
+/**
+ * @returns: (fd, events)
+ */
 template<class Request, class ConfigInfo>
-void Response::process(Request &req, ConfigInfo &config)
+std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 {
 	UriParser uriParser(req.uri);
 	std::string targetPath = uriParser.getPath();
@@ -105,10 +110,7 @@ void Response::process(Request &req, ConfigInfo &config)
 
 		files = readDirectory(targetPath);
 		if (location.isAutoIndex)
-		{
-			setBodyToDefaultPage(generateFileListPage(req.uri, files));
-			return;
-		}
+			return (setBodyToDefaultPage(generateFileListPage(req.uri, files)));
 		else
 		{
 			std::string index;
@@ -124,10 +126,11 @@ void Response::process(Request &req, ConfigInfo &config)
 	if (this->body.fd == -1)
 		throw(404);
 	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
+	return (std::make_pair(this->body.fd, EPOLLIN));
 }
 
 template<class ConfigInfo>
-void Response::process(int errorCode, ConfigInfo &config, bool close)
+std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool close)
 {
 	std::string errorPage;
 
@@ -145,21 +148,24 @@ void Response::process(int errorCode, ConfigInfo &config, bool close)
 	{
 		errorPage = config.errorPages[errorCode];
 		this->body.fd = open(errorPage.c_str(), O_RDONLY);
-		if (this->body.fd == -1)
-			setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
-		setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
+		if (this->body.fd != -1)
+		{
+			setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
+			return (std::make_pair(this->body.fd, EPOLLIN));
+		}
 	}
-	else
-		setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
+
+	return (setBodyToDefaultPage(generateDefaultErrorPage(errorCode)));
 }
 
-void Response::setBodyToDefaultPage(const std::string &html)
+std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
 {
 	this->body.buffer << html;
 	this->body.size = html.size();
 	setHeader("Content-Length", ft::toString(this->body.size));
 	setHeader("Content-Type", MediaType::get(".html"));
 	setBuffer();
+	return (std::make_pair(-1, 0));
 }
 
 std::string Response::generateDefaultErrorPage(int code) const
