@@ -1,27 +1,14 @@
 #ifndef CONNECTION_HPP
 #define CONNECTION_HPP
 
+#include "response/Response.hpp"
+
 class Request
 {
 public:
 	Request() {}
 	~Request() {}
 	bool ready()
-	{
-		return false;
-	}
-};
-
-class Response
-{
-public:
-	Response() {}
-	~Response() {}
-	bool ready()
-	{
-		return false;
-	}
-	bool sentAll()
 	{
 		return false;
 	}

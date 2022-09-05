@@ -10,8 +10,8 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <sys/epoll.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define SERVER_NAME "webserv"
@@ -30,7 +30,14 @@ std::string toString(T value)
 }
 } // namespace ft
 
-Response::Response() : statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false) {}
+Response::Response()
+		: statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false), isClose(false)
+{}
+
+Response::Response(const Response &other)
+		: statusCode(other.statusCode), header(other.header), body(), buffer(other.buffer),
+			sentBytes(0), totalBytes(0), isReady(false), isClose(other.isClose)
+{}
 
 Response::~Response() {}
 
@@ -182,8 +189,8 @@ std::string Response::generateDefaultErrorPage(int code) const
 	return (html.str());
 }
 
-std::string Response::generateFileListPage(
-		const std::string &path, const std::vector<std::string> &files) const
+std::string
+Response::generateFileListPage(const std::string &path, const std::vector<std::string> &files) const
 {
 	std::stringstream html;
 	std::size_t totalFiles = files.size();
@@ -346,8 +353,8 @@ std::vector<std::string> Response::readDirectory(const std::string &path)
 	return (files);
 }
 
-std::string Response::searchIndexFile(
-		const std::vector<std::string> &files, const std::vector<std::string> &indexFiles)
+std::string Response::searchIndexFile(const std::vector<std::string> &files,
+																			const std::vector<std::string> &indexFiles)
 {
 	std::size_t indexSize;
 	std::vector<std::string>::const_iterator found;

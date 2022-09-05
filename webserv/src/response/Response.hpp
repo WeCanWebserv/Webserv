@@ -34,6 +34,7 @@ private:
 
 public:
 	Response();
+	Response(const Response &other);
 	~Response();
 
 	bool ready() const;
@@ -52,9 +53,6 @@ public:
 	int readBody();
 
 private:
-	Response(const Response &other);
-	Response &operator=(const Response &rhs);
-
 	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
 	std::string getCurrentTime() const;
 
