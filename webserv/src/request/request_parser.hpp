@@ -49,7 +49,7 @@ private:
 	/**
 	 * body parser util
 	 */
-	static ssize_t chunkedBodyParser(Body &body, std::vector<char> &bodyOctets);
+	static ssize_t chunkedBodyParser(Body &body, const std::vector<char> &bodyOctets);
 	static ssize_t contentLengthBodyParser(Body &body, std::vector<char> &bodyOctets, Header &header);
 	static ssize_t
 	parseChunkedLengthLine(Body &body, std::vector<char> &bodyOctets, std::vector<char> &lineBuffer);
@@ -59,6 +59,9 @@ private:
 																				 ssize_t lineLength);
 	static void parseMultipartBody(Body &body, const std::string &boundary);
 	static void parseMultipartEachBody(Body &body, const std::string &eachBody);
+	static void parseMultipartEachHeader(Body &body,
+																			 const std::string &headerSection,
+																			 const std::string &bodySection);
 
 	/**
 	 * uri parser util
@@ -74,7 +77,7 @@ private:
 	static std::vector<std::string> splitStr(const std::string &token, const char *delimiter);
 	static std::vector<std::string>
 	splitStrStrict(const std::string &token, const char *delimiter, size_t delimiterSize);
-	static std::string &trimStr(std::string &target, const std::string &charset);
+	static std::string trimStr(const std::string &target, const std::string &charset);
 	static std::string &trimStrStrict(std::string &target, const std::string &charset);
 	static std::string tolowerStr(const char *str);
 };
