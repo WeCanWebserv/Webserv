@@ -2,6 +2,23 @@
 
 #include <sstream>
 #include <string>
+#include <vector>
+
+std::vector<std::string> ft_split(const std::string& str, char delim)
+{
+	std::vector<std::string> tokens;
+	std::string token;
+	std::stringstream strStream;
+	strStream.str(str);
+	while (!strStream.eof())
+	{
+		std::getline(strStream, token, delim);
+		if (token.empty())
+			continue;
+		tokens.push_back(token);
+	}
+	return tokens;
+}
 
 void ft_trim(std::string &str, const std::string &ws)
 {

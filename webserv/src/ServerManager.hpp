@@ -14,15 +14,15 @@
 #endif // BUFFER_SIZE
 
 #define DEFAULT_PATH "../config/default.conf"
-#define MAX_EVENTS 128
-#define MAX_BACKLOGS 128
+#define MAX_EVENTS 10
+#define MAX_BACKLOGS 10
 
 class ServerManager
 {
 public:
 	static const char *gDefaultPath;
 	static const int gMaxEvents = MAX_EVENTS;
-	static const int gBackLog = MAX_BACKLOGS;
+	static const int gBackLog = 1;
 
 private:
 	typedef std::map<int, const ServerConfig> server_container_type;

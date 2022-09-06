@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <exception>
 #include <iostream>
@@ -22,6 +23,10 @@
 
 ServerManager::ServerManager(const char *path)
 {
+	this->epollFd = epoll_create(this->gMaxEvents);
+	if (this->epollFd == -1)
+		throw std::runtime_error("epoll_create");
+	
 	const ConfigParser parser(path);
 	const Config &config = parser.getConfig();
 	const std::vector<ServerConfig> &serverConfigs = config.serverConfigs;
@@ -37,8 +42,9 @@ ServerManager::ServerManager(const char *path)
 			this->fdInUse.insert(socketFd);
 
 		ServerConfig serverConfig = serverConfigs[idx];
-		sockAddr.sin_addr.s_addr = serverConfig.listennedHost;
-		sockAddr.sin_port = serverConfig.listennedPort;
+		sockAddr.sin_addr.s_addr = htonl(serverConfig.listennedHost);
+		sockAddr.sin_port = htons(serverConfig.listennedPort);
+		std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort) << std::endl;
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
@@ -51,11 +57,8 @@ ServerManager::ServerManager(const char *path)
 		int serverFd = iter->first;
 		if (listen(serverFd, this->gBackLog) == -1)
 			throw std::runtime_error("listen");
+		this->addEvent(serverFd);
 	}
-
-	this->epollFd = epoll_create(this->gMaxEvents);
-	if (this->epollFd == -1)
-		throw std::runtime_error("epoll_create");
 }
 
 ServerManager::~ServerManager()
@@ -66,7 +69,7 @@ ServerManager::~ServerManager()
 
 void ServerManager::clear()
 {
-	for (std::set<int>::iterator iter; iter != this->fdInUse.end(); iter++)
+	for (std::set<int>::iterator iter = this->fdInUse.begin(); iter != this->fdInUse.end(); iter++)
 	{
 		int fd = *iter;
 		close(fd);
@@ -74,13 +77,13 @@ void ServerManager::clear()
 }
 
 void ServerManager::loop()
-{
-	struct epoll_event events[this->gMaxEvents];
+{		
+	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
 	for (;;)
 	{
-		int nfds = epoll_wait(this->epollFd, events, this->gMaxEvents - 1, 0);
+		int nfds = epoll_wait(this->epollFd, events, MAX_EVENTS, -1);
 		if (nfds == -1)
 			throw std::runtime_error("epoll_wait");
 		for (int idx = 0; idx < nfds; idx++)
@@ -163,45 +166,51 @@ void ServerManager::loop()
 }
 
 // used in connect()
-int ServerManager::addEvent(int clientFd)
+int ServerManager::addEvent(int fd)
 {
 	struct epoll_event event;
-	event.events |= EPOLLIN;
-	return epoll_ctl(this->epollFd, EPOLL_CTL_ADD, clientFd, &event);
+	event.events = EPOLLIN;
+	event.data.fd = fd;
+	return epoll_ctl(this->epollFd, EPOLL_CTL_ADD, fd, &event);
 }
 
 // used in disconnect()
-int ServerManager::deleteEvent(int clientFd)
+int ServerManager::deleteEvent(int fd)
 {
-	return epoll_ctl(this->epollFd, EPOLL_CTL_DEL, clientFd, 0);
+	return epoll_ctl(this->epollFd, EPOLL_CTL_DEL, fd, 0);
 }
 
 // used in loop()
-int ServerManager::modifyEvent(int clientFd, struct epoll_event &event, int option)
+int ServerManager::modifyEvent(int fd, struct epoll_event &event, int option)
 {
 	event.events = option;
-	return epoll_ctl(this->epollFd, EPOLL_CTL_MOD, clientFd, &event);
+	event.data.fd = fd;
+	return epoll_ctl(this->epollFd, EPOLL_CTL_MOD, fd, &event);
 }
 
 void ServerManager::connect(int serverFd)
 {
 	struct sockaddr_in clientAddr;
 	int clientLength = sizeof(clientAddr);
-	int clientFd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
-	if (clientFd == -1)
+	int fd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+	this->fdInUse.insert(fd);
+	std::cout << "id [" << fd << "]: " << "connected\n";
+	if (fd == -1)
 		throw std::runtime_error("accept");
 
 	Connection newConnection(serverFd);
-	connections.insert(std::make_pair(clientFd, newConnection));
-	if (this->addEvent(clientFd) == -1)
+	connections.insert(std::make_pair(fd, newConnection));
+	if (this->addEvent(fd) == -1)
 		throw std::runtime_error("addEvent");
 }
 
-void ServerManager::disconnect(int clientFd)
+void ServerManager::disconnect(int fd)
 {
-	this->deleteEvent(clientFd);
-	connections.erase(clientFd);
-	close(clientFd);
+	this->deleteEvent(fd);
+	connections.erase(fd);
+	close(fd);
+	std::cout << "id [" << fd << "]: " << "disconnected\n";
 }
 
 int ServerManager::receive(int fd)
@@ -212,6 +221,7 @@ int ServerManager::receive(int fd)
 		return -1;
 	else
 	{
+		std::cout << buffer << std::endl;
 		// example:
 		// Request& request = connections[fd].getRequest();
 		// request.append(buffer);
