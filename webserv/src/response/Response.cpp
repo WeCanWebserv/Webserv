@@ -129,7 +129,7 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 		}
 	}
 
-	this->body.fd = open(targetPath.c_str(), O_RDONLY);
+	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
 	if (this->body.fd == -1)
 		throw(404);
 	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
@@ -154,7 +154,7 @@ std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool cl
 	if (config.errorPages.find(errorCode) != config.errorPages.end())
 	{
 		errorPage = config.errorPages[errorCode];
-		this->body.fd = open(errorPage.c_str(), O_RDONLY);
+		this->body.fd = open(errorPage.c_str(), O_RDONLY | O_NONBLOCK);
 		if (this->body.fd != -1)
 		{
 			setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
