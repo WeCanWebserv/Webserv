@@ -317,4 +317,4 @@ private:
 	ConfigParser &operator=(const ConfigParser &other);
 };
 
-#endif // CONFIGPARSER_HPP
+#endif  // CONFIGPARSER_HPP
