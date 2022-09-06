@@ -7,6 +7,7 @@
 
 #include "ConfigInfo.hpp"
 #include "Connection.hpp"
+#include "response/Response.hpp"
 
 #ifndef BUFFER_SIZE
 #define BUFFER_SIZE 32768
@@ -24,11 +25,13 @@ public:
 private:
 	typedef std::map<int, ConfigInfo> server_container_type;
 	typedef std::map<int, Connection> connection_container_type;
+	typedef std::map<int, int> extra_fd_container_type;
 
 	char buffer[BUFFER_SIZE];
 	int epollFd;
 	server_container_type servers;
 	connection_container_type connections;
+	extra_fd_container_type extraFds;
 
 public:
 	ServerManager(const char *path);
@@ -38,7 +41,7 @@ public:
 
 protected:
 	// used in connect()
-	int addEvent(int clientFd);
+	int addEvent(int clientFd, int option);
 	// used in disconnect()
 	int deleteEvent(int clientFd);
 
@@ -47,7 +50,7 @@ protected:
 	void connect(int serverFd);
 	void disconnect(int clientFd);
 	int receive(int cliendfd);
-	int send(int clinetfd);
+	int send(int clinetfd, Response &response);
 
 private:
 	ServerManager();

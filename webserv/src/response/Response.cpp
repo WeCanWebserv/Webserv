@@ -51,6 +51,11 @@ bool Response::done() const
 	return (ready() && this->sentBytes == this->totalBytes);
 }
 
+bool Response::close() const
+{
+	return (this->isClose);
+}
+
 void Response::clear()
 {
 	this->buffer.clear();

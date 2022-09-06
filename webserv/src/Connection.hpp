@@ -33,6 +33,8 @@ public:
 	{
 		return this->response;
 	}
+
+	void clear();
 };
 
 #endif // CONNECTION_HPP

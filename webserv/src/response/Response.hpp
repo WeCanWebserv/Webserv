@@ -39,6 +39,7 @@ public:
 
 	bool ready() const;
 	bool done() const;
+	bool close() const;
 	void clear();
 
 	const char *getBuffer() const;
