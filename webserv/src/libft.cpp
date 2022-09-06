@@ -6,13 +6,11 @@
 void ft_trim(std::string &str, const std::string &ws)
 {
 	size_t firstIdx = str.find_first_not_of(ws);
-	if (firstIdx == std::string::npos)
-		return;
+	size_t lastIdx = str.find_last_not_of(ws);
+	if (firstIdx == std::string::npos && firstIdx == lastIdx)
+		str = std::string("");
 	else
-	{
-		size_t lastIdx = str.find_last_not_of(ws);
-		str.substr(firstIdx, lastIdx);
-	}
+		str = str.substr(firstIdx, lastIdx + 1);
 }
 
 void ft_replace(std::stringstream &strStream, const std::string &s1, const std::string &s2)

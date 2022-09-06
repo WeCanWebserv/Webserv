@@ -89,7 +89,7 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 
 	lineBuffer.str(line);
 	std::getline(lineBuffer, token, ' ');
-	ServerBlock &serverBlock = configBlock.serverBlocks.back();
+	ServerBlock &serverBlock = configBlock.nextServerBlock;
 	if (token == "{")
 	{
 		if (serverBlock.isInBlock)
@@ -102,6 +102,8 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 		if (!serverBlock.isInBlock)
 			throw std::runtime_error("syntax wrong: context location");
 
+		configBlock.serverBlocks.push_back(serverBlock);
+		serverBlock.locationBlocks.clear();
 		serverBlock.isInBlock = false;
 		configBlock.context = CONTEXT_NON;
 	}
@@ -121,8 +123,7 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 			if (locationBlocks.find(uri) != locationBlocks.end())
 				throw std::runtime_error("duplicated url");
 
-			serverBlock.locationBlocks[uri];
-			serverBlock.currentUri = uri;
+			serverBlock.nextUri = uri;
 			configBlock.context = CONTEXT_LOCATION;
 		}
 		else
@@ -143,8 +144,9 @@ void ConfigParser::handleLineInLocationBlock(ConfigBlock &configBlock, std::stri
 	lineBuffer.str(line);
 	std::getline(lineBuffer, token, ' ');
 
-	ServerBlock &serverBlock = configBlock.serverBlocks.back();
-	LocationBlock &locationBlock = serverBlock.locationBlocks[serverBlock.currentUri];
+	ServerBlock &serverBlock = configBlock.nextServerBlock;
+	std::string &nextUri = serverBlock.nextUri;
+	LocationBlock &locationBlock = serverBlock.nextLocationBlock;
 	if (token == "{")
 	{
 		if (locationBlock.isInBlock)
@@ -157,6 +159,7 @@ void ConfigParser::handleLineInLocationBlock(ConfigBlock &configBlock, std::stri
 		if (!locationBlock.isInBlock)
 			throw std::runtime_error("syntax wrong: context location");
 
+		serverBlock.locationBlocks.insert(std::make_pair(nextUri, locationBlock));
 		locationBlock.isInBlock = false;
 		configBlock.context = CONTEXT_SERVER;
 	}
@@ -180,10 +183,12 @@ void ConfigParser::handleLineInNoContext(ConfigBlock &configBlock, std::string &
 	lineBuffer.str(line);
 	std::getline(lineBuffer, token, ' ');
 
-	if (line.back() != ';')
+	if (token == "server") 
+		configBlock.context = CONTEXT_SERVER;
+	else if (line.back() != ';')
 		throw std::runtime_error("syntax wrong: context non");
-
-	configBlock.directives.push_back(line.substr(0, line.length() - 1));
+	else
+		configBlock.directives.push_back(line.substr(0, line.length() - 1));
 }
 
 void ConfigParser::populate()

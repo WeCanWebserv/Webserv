@@ -23,7 +23,8 @@ struct ServerBlock
 	bool isInBlock;
 
 	std::map<std::string, LocationBlock> locationBlocks;
-	std::string currentUri;
+	std::string nextUri;
+	LocationBlock nextLocationBlock;
 
 	ServerBlock() : isInBlock(false) {}
 };
@@ -45,6 +46,7 @@ struct ConfigBlock : public ConfigContext
 	bool isInBlock;
 
 	std::vector<ServerBlock> serverBlocks;
+	ServerBlock nextServerBlock;
 	int context;
 
 	ConfigBlock() : context(CONTEXT_NON), isInBlock(false) {}
