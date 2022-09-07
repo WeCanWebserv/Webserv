@@ -46,12 +46,12 @@ public:
 
 protected:
 	// used in connect()
-	int addEvent(int clientFd, int option);
+	int addEvent(int fd, int option);
 	// used in disconnect()
-	int deleteEvent(int clientFd);
+	int deleteEvent(int fd);
 
 	// used in loop()
-	int modifyEvent(int clientFd, struct epoll_event &event, int option);
+	int modifyEvent(int fd, struct epoll_event &event, int option);
 	void connect(int serverFd);
 	void disconnect(int clientFd);
 	int receive(int fd);
