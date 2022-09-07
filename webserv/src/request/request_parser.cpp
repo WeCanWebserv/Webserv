@@ -10,7 +10,7 @@
 #include <vector>
 
 #if DEBUG
-#include <iostream> // TODO: 지우기(디버깅용)
+#include <iostream>
 #endif
 
 std::vector<std::string> RequestParser::methodTokenSet = RequestParser::initMethodTokenSet();
@@ -140,9 +140,6 @@ void RequestParser::startlineHTTPVersionParser(std::string &httpVersion, const s
 	const char *versionList = "3, 2, 1.1, 1.0, 0.9";
 	ssize_t idx;
 
-	/**
-	 * TODO: 버전 호환성을 어떻게 할지 정할 것
-	 */
 	tokenset = splitStr(token, "/");
 	if (tokenset[0].compare("HTTP"))
 	{
@@ -164,15 +161,8 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 {
 	std::string headerToken;
 	std::vector<std::string> tmp;
-
 	std::string tmpstring;
-	/**
-	 * 1. header field와 value를 분리
-	 * 2. field에 SP가 있으면 400 error (공격 방지를 위함)
-	 * 3. value는 ":" 바로 뒤에 오는 SP문자를 제외한 SP문자 및 CRLF 바로 앞에 오는 SP를 제외한 SP문자들을 trim 한다.
-	 *
-	 * header section이 끝나면 headerParser메소드에서 로직 시작
-	 */
+
 	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
 	{
 		Logger::debug(LOG_LINE) << "Header secion size is too long";
@@ -202,36 +192,13 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	{
 		headerbuf[tmp[0]] = trimStr(tmp[1], " ");
 	}
-
-#if DEBUG > 2
-	std::map<std::string, std::string>::iterator it = headerbuf.begin();
-	std::map<std::string, std::string>::iterator end = headerbuf.end();
-	size_t idx = 0;
-	for (; it != end; it++, idx++)
-	{
-		std::cout << "[" << idx << "] " << it->first << ": " << it->second << std::endl;
-	}
-#endif
 }
 
 void RequestParser::headerParser(Header &header,
 																 std::map<std::string, std::string> &headerbuf,
 																 const std::string &method)
 {
-	/**
- 	 * header field에 없는 token은 무시하도록 하자(error가 아님)
-	 * header-field는 오로지 US_ASCII로만 encoding되어야 한다.
-	 * header-value에 대한 format은 복잡하니 정리해놓은 것을 참고할 것.
-	 *
-	 * 6. header section이 모두 끝나면 predefined field name에 맞지 않는 것은 누락시키고 Header 구조에 맞춰 넣는다.
-	 * 7. 그리고 field value에 대해 validation을 진행한다.
-	 * 8. invalid format이라면 해당 이유에 맞춰 status code를 throw한다.
-	 * 9. valid format이라면 FieldValue 구조에 맞춰 parsing 및 할당한다.
-	 */
-#if DEBUG > 1
-	std::cout << "header section is done\n";
-#endif
-
+	Logger::debug(LOG_LINE) << "Header section is done";
 	std::vector<FieldValue> fieldvalueVec;
 
 	if (!RequestParser::checkHeaderFieldContain(headerbuf, "Host"))
@@ -249,9 +216,6 @@ void RequestParser::headerParser(Header &header,
 	{
 		if (!RequestParser::checkHeaderFieldContain(headerbuf, CONTENT_LENGTH))
 		{
-#if DEBUG
-			std::cout << "no chunked and content-length\n";
-#endif
 			if (!(method == "GET" || method == "HEAD"))
 			{
 				Logger::debug(LOG_LINE) << "Length is required";
@@ -286,7 +250,7 @@ void RequestParser::headerValueParser(std::vector<FieldValue> &fieldvalueVec,
 		if (descriptionTokenSet.size() < 1)
 			continue;
 		FieldValue fieldvalue;
-		fieldvalue.value = descriptionTokenSet[0];
+		fieldvalue.value = trimStr(descriptionTokenSet[0], "\r\n");
 		descriptionTokenSet.erase(descriptionTokenSet.begin());
 		RequestParser::headerValueDescriptionParser(fieldvalue.descriptions, descriptionTokenSet);
 		fieldvalueVec.push_back(fieldvalue);
@@ -309,13 +273,13 @@ void RequestParser::headerValueDescriptionParser(std::map<std::string, std::stri
 			descriptions.insert(std::make_pair(pairTokenSet[0], blank));
 		}
 		else if (pairTokenSet.size() == 2)
-			descriptions.insert(std::make_pair(pairTokenSet[0], pairTokenSet[1]));
+			descriptions.insert(std::make_pair(pairTokenSet[0], trimStr(pairTokenSet[1], "\r\n\"")));
 		else
 		{
 			std::string tmp;
 			for (size_t j = 1; j < pairTokenSet.size(); j++)
 				tmp = tmp + pairTokenSet[i];
-			descriptions.insert(std::make_pair(pairTokenSet[0], tmp));
+			descriptions.insert(std::make_pair(pairTokenSet[0], trimStr(tmp, "\r\n\"")));
 		}
 	}
 }
@@ -379,12 +343,21 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 	 * GET이나 HEAD일 경우에 해당한다.
 	 * 나머지 경우는 HeaderParser가 완성된 후로 validation을 완료 하였다.
 	 */
+
+	std::cout << "************************hello\n";
+	header.print();
+	std::cout << std::boolalpha;
+	std::cout <<"TRANSFER_ENCODING" << header.hasField(TRANSFER_ENCODING) << std::endl;
+	std::cout <<"TRANSFER_ENCODING:chunked" << header.hasFieldValue(TRANSFER_ENCODING, "chunked") << std::endl;
 	body.setParseFlag(Body::FINISHED);
 	return (0);
 }
 
 void RequestParser::postBodyParser(Body &body, Header &header)
 {
+#if DEBUG
+	body.print();
+#endif
 	FieldValue fieldvalue;
 	std::map<std::string, std::string>::const_iterator boundary;
 
@@ -415,56 +388,65 @@ void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 
 void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBody)
 {
-	std::map<std::string, std::string> headerbuf;
 	std::vector<std::string> sectionSet;
-	std::stringstream ss;
-	std::string line;
-	Header eachHeader;
 
 	sectionSet = splitStrStrict(eachBody, "\r\n\r\n", 4);
+	if (sectionSet.size() > 2)
+	{
+		Logger::debug(LOG_LINE)
+				<< "Multipart format body does not have header-body pair || section delimiter is invalid";
+		throw(400);
+	}
 	if (sectionSet.size() == 1)
 	{
 		body.multipartFormData.push_back(
 				std::make_pair(Header(), std::vector<char>(sectionSet[0].begin(), sectionSet[0].end())));
 		return;
 	}
-	if (sectionSet.size() != 2)
-	{
-		Logger::debug(LOG_LINE)
-				<< "Multipart format body does not have header-body pair || section delimiter is invalid";
-		throw(400);
-	}
-	ss << sectionSet[0]; // header는 binary data가 아니므로 string stream으로 관리해도 됨
+	RequestParser::parseMultipartEachHeader(body, sectionSet[0], sectionSet[1]);
+}
+
+void RequestParser::parseMultipartEachHeader(Body &body,
+																						 const std::string &headerSection,
+																						 const std::string &bodySection)
+{
+	const std::string dummyMethod = "GET";
+	const std::string dummyHostField = "localhost";
+	std::map<std::string, std::string> headerbuf;
+	std::stringstream ss;
+	std::string line;
+	Header eachHeader;
+
+	ss << headerSection; // header는 binary data가 아니므로 string stream으로 관리해도 됨
 	while (std::getline(ss, line))
 	{
 		RequestParser::fillHeaderBuffer(headerbuf, line, 0);
 		if (ss.eof())
 			break;
 	}
-	const std::string dummyMethod = "GET";
-	const std::string dummyHostField = "localhost";
 	headerbuf[tolowerStr("Host")] = dummyHostField;
 	RequestParser::headerParser(eachHeader, headerbuf, dummyMethod);
-#if DEBUG > 2
+#if DEBUG > 1
 	eachHeader.print();
 #endif
 	body.multipartFormData.push_back(
-			std::make_pair(eachHeader, std::vector<char>(sectionSet[1].begin(), sectionSet[1].end())));
+			std::make_pair(eachHeader, std::vector<char>(bodySection.begin(), bodySection.end())));
 }
 
-ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOctets)
+ssize_t RequestParser::chunkedBodyParser(Body &body, const std::vector<char> &bodyOctets)
 {
 	ssize_t lineLength;
 	std::vector<char> lineBuffer;
-	std::vector<std::vector<char> > lineTokenSet;
-	// TODO: 입력으로 들어오는 bodyOctets를 변경하지 말고 새로 지역변수를 복사생성자로 생성하여 이를 이용하자
+	std::vector<char> copyBodyOctets = bodyOctets;
 
 	body.chunkedParsingPrologue(lineBuffer, lineLength);
-	while (bodyOctets.size())
+	std::cout << "*************************hihihih\n\n";
+	while (copyBodyOctets.size())
 	{
 		if (body.getParseFlag() == Body::CHUNKED_LENGTH)
 		{
-			if ((lineLength = RequestParser::parseChunkedLengthLine(body, bodyOctets, lineBuffer)) < 0)
+			if ((lineLength = RequestParser::parseChunkedLengthLine(body, copyBodyOctets, lineBuffer)) <
+					0)
 				break;
 			if (lineLength == 0)
 			{
@@ -475,7 +457,7 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOcte
 		}
 		else if (body.getParseFlag() == Body::CHUNKED_CONTENT)
 		{
-			if (!RequestParser::parseChunkedContentLine(body, bodyOctets, lineBuffer, lineLength))
+			if (!RequestParser::parseChunkedContentLine(body, copyBodyOctets, lineBuffer, lineLength))
 			{
 				lineLength = 0;
 				body.setParseFlag(Body::CHUNKED_LENGTH);
@@ -486,14 +468,11 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, std::vector<char> &bodyOcte
 	}
 	if (body.getParseFlag() == Body::FINISHED)
 	{
-#if DEBUG
-		std::cout << "body parse finished\n";
-#endif
+		Logger::debug(LOG_LINE) << "Body Parse is done";
 		return (0);
 	}
 	body.chunkedParsingEpilogue(lineBuffer, lineLength);
-	return (
-			-1); // TODO: 모자르다는 의미, 근데 들어온 입력이 남는다는 의미도 표현해야 한다. (-1)로 할 것임
+	return (-1); // 모자르다는 의미, TODO: 근데 들어온 입력이 남는다는 의미도 표현해야 한다.
 }
 
 ssize_t RequestParser::parseChunkedLengthLine(Body &body,
@@ -514,9 +493,7 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 				if (lineBuffer[lineBuffer.size() - 1] == '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
 				{
 					lineBuffer.pop_back();
-					bodyOctets.erase(bodyOctets.begin(),
-													 bodyOctets.begin() +
-															 (i + 1)); // TODO: 읽은 i보다 더 많이 지워도 위험하지 않은가?
+					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
 					lineDoneFlag = true;
 				}
 				else
@@ -529,9 +506,7 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 			{
 				if (i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
 				{
-					bodyOctets.erase(bodyOctets.begin(),
-													 bodyOctets.begin() +
-															 (i + 2)); // TODO: 읽은 i보다 더 많이 지워도 위험하지 않은가?
+					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
 					lineDoneFlag = true;
 				}
 				else
@@ -664,30 +639,31 @@ RequestParser::splitStrStrict(const std::string &str, const char *delimiter, siz
 }
 
 // TODO: 입력의 변경을 없애자(입력을 변경하는 대신 새로운 변수를 만들어 반환하자)
-std::string &RequestParser::trimStr(std::string &target, const std::string &charset)
+std::string RequestParser::trimStr(const std::string &target, const std::string &charset)
 {
 	size_t idx;
 	std::string::iterator it;
+	std::string copyTarget = target;
 
 	idx = 0;
-	while (idx < target.size())
+	while (idx < copyTarget.size())
 	{
-		it = target.begin();
-		if (charset.find(target[idx]) == std::string::npos)
+		it = copyTarget.begin();
+		if (charset.find(copyTarget[idx]) == std::string::npos)
 			break;
-		target.erase(it + idx);
+		copyTarget.erase(it + idx);
 	}
 
-	idx = target.size() - 1;
+	idx = copyTarget.size() - 1;
 	while (idx >= 0)
 	{
-		it = target.begin();
-		if (charset.find(target[idx]) == std::string::npos)
+		it = copyTarget.begin();
+		if (charset.find(copyTarget[idx]) == std::string::npos)
 			break;
-		target.erase(it + idx);
+		copyTarget.erase(it + idx);
 		--idx;
 	}
-	return target;
+	return copyTarget;
 }
 
 // std::string &RequestParser::trimStrStrict(std::string &target, const std::string &charset)

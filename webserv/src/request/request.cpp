@@ -50,11 +50,8 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 	{
 		while (this->parseStage != Request::STAGE_BODY && std::getline(this->buf, line))
 		{
-			if (checkLineFinishedWithoutNewline(this->buf)) // line이 덜 끝난 경우(= 개행 없이 끝난 경우)
-			{
-				doRequestEpilogue(line);
+			if (checkLineFinishedWithoutNewline(this->buf))
 				break;
-			}
 			parsedLength += countParsedOctets(line, initialLength);
 			initialLength = 0;
 			switch (this->parseStage)
@@ -75,9 +72,7 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 				else
 				{
 					RequestParser::headerParser(header, headerbuf, startline.method);
-					setParseStage(
-							Request::
-									STAGE_BODY); // body로 가거나 끝나거나 check -> body parser에서 진행됨. 이미 관련 validation을 다 해둔 상태임
+					setParseStage(Request::STAGE_BODY);
 				}
 				break;
 			default:
@@ -94,9 +89,6 @@ int Request::fillBuffer(const char *octets, size_t octetSize)
 			{
 				RequestParser::postBodyParser(body, header);
 				this->parseStage = Request::STAGE_DONE;
-#if DEBUG
-				body.print();
-#endif
 			}
 		}
 	}

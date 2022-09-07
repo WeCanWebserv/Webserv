@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <exception>
 #include <iostream>
@@ -13,90 +14,72 @@
 #include <utility>
 #include <vector>
 
-#include "ConfigInfo.hpp"
+#include "Config.hpp"
 #include "ConfigParser.hpp"
+
 #include "Connection.hpp"
 #include "response/Response.hpp"
 
+#include <iostream>
+
 ServerManager::ServerManager(const char *path)
 {
-	if (!path)
-		path = "./config/default.conf";
-	try
+	this->epollFd = epoll_create(this->gMaxEvents);
+	if (this->epollFd == -1)
+		throw std::runtime_error("epoll_create");
+	
+	const ConfigParser parser(path);
+	const Config &config = parser.getConfig();
+	const std::vector<ServerConfig> &serverConfigs = config.serverConfigs;
+
+	struct sockaddr_in sockAddr;
+	sockAddr.sin_family = AF_INET;
+	for (size_t idx = 0; idx < serverConfigs.size(); idx++)
 	{
-		epollFd = epoll_create(this->gMaxEvents);
-		if (epollFd == -1)
-			throw std::runtime_error("epoll_create");
+		int socketFd = socket(PF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
+		if (socketFd == -1)
+			throw std::runtime_error("socket");
+		else
+			this->fdInUse.insert(socketFd);
 
-		ConfigParser parser(path);
-		std::vector<ConfigInfo> infos;
-		for (;;)
-		{
-			if (!parser.remain())
-				break;
-			ConfigInfo info = parser.getInfo();
-			infos.push_back(info);
-		}
-		for (std::vector<ConfigInfo>::iterator infoIter = infos.begin(); infoIter != infos.end();
-				 infoIter++)
-		{
-			int host = infoIter->getHost();
-			struct protoent *proto = getprotobyname("tcp");
-			if (!proto)
-				throw std::runtime_error("getprotobyname");
+		ServerConfig serverConfig = serverConfigs[idx];
+		sockAddr.sin_addr.s_addr = htonl(serverConfig.listennedHost);
+		sockAddr.sin_port = htons(serverConfig.listennedPort);
+		std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort) << std::endl;
+		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
+			throw std::runtime_error("bind");
 
-			const std::vector<int> &ports = infoIter->getPorts();
-			struct sockaddr_in sockAddr;
-			sockAddr.sin_family = AF_INET;
-			for (std::vector<int>::iterator portIter; portIter != ports.end(); portIter++)
-			{
-				int socketFd = socket(PF_INET, SOCK_STREAM, proto->p_proto);
-				if (socketFd == -1)
-					throw std::runtime_error("socket");
-
-				int port = *portIter;
-				sockAddr.sin_port = htons(port);
-				sockAddr.sin_addr.s_addr = htonl(host);
-				if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
-					throw std::runtime_error("bind");
-
-				const std::pair<server_container_type::iterator, bool> &result =
-						servers.insert(std::make_pair(socketFd, *infoIter));
-				if (!result.second)
-					throw std::runtime_error("servers.insert");
-			}
-		}
-		for (std::map<int, ConfigInfo>::iterator servIter; servIter != servers.end(); servIter++)
-		{
-			int serverFd = servIter->first;
-			if (listen(serverFd, this->gBackLog) == -1)
-				throw std::runtime_error("listen");
-		}
+		if (!servers.insert(std::make_pair(socketFd, serverConfig)).second)
+			throw std::runtime_error("map.insert");
 	}
-	catch (const std::exception &e)
+
+	for (server_container_type::iterator iter = servers.begin(); iter != servers.end(); iter++)
 	{
-		std::cerr << e.what() << '\n';
+		int serverFd = iter->first;
+		if (listen(serverFd, this->gBackLog) == -1)
+			throw std::runtime_error("listen");
+		this->addEvent(serverFd, EPOLLIN);
 	}
 }
 
 ServerManager::~ServerManager()
 {
-	for (server_container_type::iterator servIter = this->servers.begin();
-			 servIter != this->servers.end(); servIter++)
-	{
-		close(servIter->first);
-	}
-	for (connection_container_type::iterator connIter = this->connections.begin();
-			 connIter != this->connections.end(); connIter++)
-	{
-		close(connIter->first);
-	}
+	this->clear();
 	close(this->epollFd);
 }
 
-void ServerManager::loop()
+void ServerManager::clear()
 {
-	struct epoll_event events[this->gMaxEvents];
+	for (std::set<int>::iterator iter = this->fdInUse.begin(); iter != this->fdInUse.end(); iter++)
+	{
+		int fd = *iter;
+		close(fd);
+	}
+}
+
+void ServerManager::loop()
+{		
+	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
 	for (;;)
@@ -199,6 +182,10 @@ void ServerManager::loop()
 							else
 								this->disconnect(eventFd);
 						}
+						// if (response.ready())
+						// {
+						// 	// this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT);
+						// }
 					}
 				}
 			}
@@ -259,45 +246,51 @@ void ServerManager::loop()
 }
 
 // used in connect()
-int ServerManager::addEvent(int clientFd, int option)
+int ServerManager::addEvent(int fd, int option)
 {
 	struct epoll_event event;
 	event.events = option;
-	return epoll_ctl(this->epollFd, EPOLL_CTL_ADD, clientFd, &event);
+	event.data.fd = fd;
+	return epoll_ctl(this->epollFd, EPOLL_CTL_ADD, fd, &event);
 }
 
 // used in disconnect()
-int ServerManager::deleteEvent(int clientFd)
+int ServerManager::deleteEvent(int fd)
 {
-	return epoll_ctl(this->epollFd, EPOLL_CTL_DEL, clientFd, 0);
+	return epoll_ctl(this->epollFd, EPOLL_CTL_DEL, fd, 0);
 }
 
 // used in loop()
-int ServerManager::modifyEvent(int clientFd, struct epoll_event &event, int option)
+int ServerManager::modifyEvent(int fd, struct epoll_event &event, int option)
 {
 	event.events = option;
-	return epoll_ctl(this->epollFd, EPOLL_CTL_MOD, clientFd, &event);
+	event.data.fd = fd;
+	return epoll_ctl(this->epollFd, EPOLL_CTL_MOD, fd, &event);
 }
 
 void ServerManager::connect(int serverFd)
 {
 	struct sockaddr_in clientAddr;
 	int clientLength = sizeof(clientAddr);
-	int clientFd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
-	if (clientFd == -1)
+	int fd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+	this->fdInUse.insert(fd);
+	std::cout << "id [" << fd << "]: " << "connected\n";
+	if (fd == -1)
 		return;
 
 	Connection newConnection(serverFd);
-	connections.insert(std::make_pair(clientFd, newConnection));
-	if (this->addEvent(clientFd, EPOLLIN) == -1)
-		this->disconnect(clientFd);
+	connections.insert(std::make_pair(fd, newConnection));
+	if (this->addEvent(fd, EPOLLIN) == -1)
+		this->disconnect(fd);
 }
 
-void ServerManager::disconnect(int clientFd)
+void ServerManager::disconnect(int fd)
 {
-	this->deleteEvent(clientFd);
-	connections.erase(clientFd);
-	close(clientFd);
+	this->deleteEvent(fd);
+	connections.erase(fd);
+	close(fd);
+	std::cout << "id [" << fd << "]: " << "disconnected\n";
 }
 
 int ServerManager::receive(int fd)
@@ -308,6 +301,7 @@ int ServerManager::receive(int fd)
 		return -1;
 	else
 	{
+		std::cout << buffer << std::endl;
 		// example:
 		// Request& request = connections[fd].getRequest();
 		// request.append(buffer);

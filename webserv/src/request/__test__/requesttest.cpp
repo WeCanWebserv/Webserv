@@ -1,5 +1,5 @@
-#include "../src/request/request.hpp"
-#include "../src/Logger.hpp"
+#include "../request.hpp"
+#include "../../Logger.hpp"
 #include <iostream>
 #include <string>
 #include <unistd.h>
