@@ -104,17 +104,17 @@ public:
 		// std::vector<std::string>::iterator end = tokenvec.end();
 		// for (size_t i = 0; i < tokenvec.size(); i++)
 		// 	headerMap[tolowerStr(tokenvec[i])];
-// #if DEBUG > 1
-// 		size_t i = 0;
-// 		std::cout << "[ Predefined Header Fields ]\n";
-// 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
-// 				 it != headerMap.end(); it++)
-// 		{
-// 			std::cout << "[" << i << "] " << it->first << std::endl;
-// 			i++;
-// 		}
-// 		std::cout << "\n";
-// #endif
+		// #if DEBUG > 1
+		// 		size_t i = 0;
+		// 		std::cout << "[ Predefined Header Fields ]\n";
+		// 		for (std::map<std::string, std::vector<FieldValue> >::iterator it = headerMap.begin();
+		// 				 it != headerMap.end(); it++)
+		// 		{
+		// 			std::cout << "[" << i << "] " << it->first << std::endl;
+		// 			i++;
+		// 		}
+		// 		std::cout << "\n";
+		// #endif
 	}
 
 	const HeaderMap &getFields(void) const

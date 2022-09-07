@@ -1,4 +1,5 @@
-#include "../request.hpp"
+#include "../request_manager.hpp"
+
 #include "../../Logger.hpp"
 #include <iostream>
 #include <string>
@@ -18,7 +19,7 @@ Host: www.webser.com"
 
 void test(const char *buffer, ssize_t octetSize, ssize_t bufsize)
 {
-	Request req;
+	RequestManager req;
 	char *ptr;
 
 	ptr = (char *)malloc(bufsize * sizeof(char));
