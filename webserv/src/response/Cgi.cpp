@@ -1,5 +1,6 @@
 #include "Cgi.hpp"
 #include "../request/request.hpp"
+#include "UriParser.hpp"
 
 #include <netinet/in.h>
 #include <sstream>
@@ -160,18 +161,27 @@ char **Cgi::generateMetaVariables(Request &req, Config &config, Location &locati
 	/**
 	 * uri
 	 */
-	// TODO: uri parsing
+	UriParser uriParser(req.uri);
+
 	env["REQUEST_METHOD"] = req.method;
 	env["REQUEST_URI"] = req.uri;
-	env["DOCUMENT_URI"]; // uri에서 query 전까지 config의 location을 제외해야 할까
-	env["DOCUMENT_ROOT"] = location.root; // config root
-	env["SCRIPT_NAME"];                   // uri에서 script 파일까지
-	env["SCRIPT_FILENAME"];               // DOCUMENT_ROOT + SCRIPT_NAME
+	env["DOCUMENT_URI"] = uriParser.getPath();
+	env["DOCUMENT_ROOT"] = location.root;
+	env["SCRIPT_NAME"] = uriParser.getFile();
+	env["SCRIPT_FILENAME"] = env["DOCUMENT_ROOT"] + env["SCRIPT_NAME"];
 
-	// optional uri data
-	env["PATH_INFO"];       // uri에서 SCRIPT_NAME 뒤에 오는 경로
-	env["PATH_TRANSLATED"]; // DOCUMENT_ROOT  + PATH_INFO
-	env["QUERY_STRING"];
+	std::string pathInfo = uriParser.getPathInfo();
+
+	if (pathInfo.size())
+	{
+		env["PATH_INFO"] = pathInfo; // uri에서 SCRIPT_NAME 뒤에 오는 경로
+		env["PATH_TRANSLATED"] = env["DOCUMENT_ROOT"] + env["PATH_INFO"];
+	}
+
+	std::string query = uriParser.getQuery();
+
+	if (query.size())
+		env["QUERY_STRING"] = query;
 
 	/**
 	 * Request Header
