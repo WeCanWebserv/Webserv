@@ -18,10 +18,10 @@ public:
 	Cgi(const Cgi &other);
 	~Cgi();
 
-	template<class Request>
-	int run(Request &req, int serverFd, int clientFd, const std::string &root);
-	template<class Request>
-	char **generateMetaVariables(Request &req, int serverFd, int clientFd, const std::string &root);
+	template<class Request, class Config, class Location>
+	int run(Request &req, Config &config, Location &location, int clientFd);
+	template<class Request, class Config, class Location>
+	char **generateMetaVariables(Request &req, Config &config, Location &location, int clientFd);
 };
 
 #endif // !CGI_HPP

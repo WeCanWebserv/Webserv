@@ -1,10 +1,13 @@
 #include "Cgi.hpp"
+#include "../request/request.hpp"
 
 #include <netinet/in.h>
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -30,6 +33,23 @@ std::string toString(T value)
 	ss << value;
 	return (ss.str());
 }
+
+int toUnderscore(int c)
+{
+	if (c == '-')
+		return ('_');
+	return (c);
+}
+
+template<class UnaryOP>
+std::string transform(const std::string &str, UnaryOP op)
+{
+	std::string up = str;
+
+	std::transform(up.begin(), up.end(), up.begin(), op);
+	return (up);
+}
+
 } // namespace ft
 
 Cgi::Cgi() : isCgi(false), pid(-1) {}
@@ -44,8 +64,8 @@ Cgi::~Cgi() {}
 /**
  * run(Request, ServerConfig, location, clientFd)
  */
-template<class Request>
-int Cgi::run(Request &req, int serverFd, int clientFd, const std::string &root)
+template<class Request, class Config, class Location>
+int Cgi::run(Request &req, Config &config, Location &location, int clientFd)
 {
 	int reqPipe[2];
 	int resPipe[2];
@@ -88,7 +108,7 @@ int Cgi::run(Request &req, int serverFd, int clientFd, const std::string &root)
 		dup2(resPipe[1], STDOUT_FILENO);
 
 		char **cmd; // = { "location.cgi", "uri.scriptName" NULL }
-		char **env = generateMetaVariables(req, serverFd, clientFd, root);
+		char **env = generateMetaVariables(req, config, location, clientFd);
 		int err = execve(cmd[0], cmd, env);
 		exit(err);
 	}
@@ -103,13 +123,33 @@ int Cgi::run(Request &req, int serverFd, int clientFd, const std::string &root)
 	return (0);
 }
 
-template<class Request>
-char **Cgi::generateMetaVariables(Request &req, int serverFd, int clientFd, const std::string &root)
+template<class Request, class Config, class Location>
+char **Cgi::generateMetaVariables(Request &req, Config &config, Location &location, int clientFd)
 {
-	char **result;
-	std::map<std::string, std::string> env;
-	std::map<std::string, std::string>::iterator it, ite;
+	typedef std::map<std::string, std::string> env_type;
 
+	char **result;
+	env_type env;
+
+	env["GATEWAY_INTERFACE"] = "CGI/1.1";
+
+	/**
+	 * for php-cgi
+	 */
+	env["REDIRECT_STATUS"] = "200";
+
+	/**
+	 * server info
+	 */
+	env["SERVER_ADDR"] = config.listennedHost;
+	env["SERVER_PORT"] = config.listennedPort;
+	env["SERVER_NAME"] = config.listOfServerNames;
+	env["SERVER_PROTOCOL"] = "HTTP/1.1";
+	env["SERVER_SOFTWARE"] = "webserv";
+
+	/**
+	 * client info
+	 */
 	struct sockaddr_in addr;
 	socklen_t addrLen = sizeof(addr);
 
@@ -117,46 +157,57 @@ char **Cgi::generateMetaVariables(Request &req, int serverFd, int clientFd, cons
 	env["REMOTE_ADDR"] = ft::toString(ntohl(addr.sin_addr.s_addr));
 	env["REMOTE_PORT"] = ft::toString(ntohs(addr.sin_port));
 
-	// FIX: serverConfig에서 받아오기
-	getsockname(serverFd, reinterpret_cast<struct sockaddr *>(&addr), &addrLen);
-	env["SERVER_ADDR"] = ft::toString(ntohl(addr.sin_addr.s_addr));
-	env["SERVER_PORT"] = ft::toString(ntohs(addr.sin_port));
-	// env["SERVER_NAME"] = config.serverName;
-
-	env["GATEWAY_INTERFACE"] = "CGI/1.1";
-	env["SERVER_PROTOCOL"] = "HTTP/1.1";
-	env["SERVER_SOFTWARE"] = "webserv";
-
-	// parse uri
+	/**
+	 * uri
+	 */
+	// TODO: uri parsing
 	env["REQUEST_METHOD"] = req.method;
 	env["REQUEST_URI"] = req.uri;
 	env["DOCUMENT_URI"]; // uri에서 query 전까지 config의 location을 제외해야 할까
-	env["DOCUMENT_ROOT"] = root; // config root
-	env["SCRIPT_NAME"];          // uri에서 script 파일까지
-	env["SCRIPT_FILENAME"];      // DOCUMENT_ROOT + SCRIPT_NAME
+	env["DOCUMENT_ROOT"] = location.root; // config root
+	env["SCRIPT_NAME"];                   // uri에서 script 파일까지
+	env["SCRIPT_FILENAME"];               // DOCUMENT_ROOT + SCRIPT_NAME
 
-	// php
-	env["REDIRECT_STATUS"] = "200";
-
-	// optional
+	// optional uri data
 	env["PATH_INFO"];       // uri에서 SCRIPT_NAME 뒤에 오는 경로
 	env["PATH_TRANSLATED"]; // DOCUMENT_ROOT  + PATH_INFO
 	env["QUERY_STRING"];
-	if (req.body)
+
+	/**
+	 * Request Header
+	 */
+	const Header::HeaderMap &headers = req.getHeader().getFields();
+
+	for (Header::HeaderMap::const_iterator it = headers.begin(), ite = headers.end(); it != ite; ++it)
 	{
-		env["CONTENT_LENGTH"];
-		env["CONTENT_TYPE"];
+		std::string fieldName = it->first;
+
+		fieldName = ft::transform(fieldName, ::toupper);
+		fieldName = ft::transform(fieldName, ft::toUnderscore);
+		env["HTTP_" + fieldName] = ""; // FIX: std::vector<FieldValue> => toString;
 	}
 
-	// TODO: request header "HTTP_" prefix와 함께 환경변수로 전달하기
+	/**
+	 * Reqeust Body
+	 */
+	const Body &body = req.getBody();
 
+	if (body.payload.size())
+	{
+		env["CONTENT_LENGTH"] = ft::toString(body.payload.size());
+		env["CONTENT_TYPE"] = env["HTTP_CONTENT_TYPE"];
+	}
+
+	/**
+	 * convert to char** from std::map
+	 */
 	const size_t envSize = env.size();
-	int i;
+	int i = 0;
 
 	result = new char *[envSize];
-	for (i = 0, it = env.begin(), ite = env.end(); it != ite; ++i, ++it)
+	for (env_type::iterator it = env.begin(), ite = env.end(); it != ite; ++it, ++i)
 	{
-		result[i] = ft::strdup((*it).first + "=" + (*it).second);
+		result[i] = ft::strdup(it->first + "=" + it->second);
 	}
 	return (result);
 }
