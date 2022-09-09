@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "../Logger.hpp"
+
 struct Body
 {
 	std::vector<char> payload;
@@ -52,31 +54,36 @@ struct Body
 		parseFlag = flag;
 	}
 
-#if DEBUG
 public:
 	void print(void)
 	{
-		std::cout << "\n################### [ DEBUG: Body print ] ##################\n\n";
-		for (size_t i = 0; i < this->payload.size(); i++)
-		{
-			std::cout << this->payload[i];
-		}
-		std::cout << "\n\n##########################################################\n";
+		std::string str;
+
+		str.append("\n################### [ DEBUG: Body print ] ##################\n\n");
+		str.append(this->payload.begin(), this->payload.end());
+		str.append("\n\n##########################################################\n");
+		Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
+#if DEBUG
+		std::cout << str << std::endl;
+#endif
+
+#if DEBUG > 2
 		if (this->multipartFormData.size())
 		{
-			std::cout << "#########[ Body: Multipart Form Data ]#########\n";
+			str.clear();
+			Logger::log(Logger::LOGLEVEL_INFO) << "#########[ Body: Multipart Form Data ]#########\n";
 			for (size_t i = 0; i < this->multipartFormData.size(); i++)
 			{
-				std::cout << "\n[[[[[[[ Header " << i << " ]]]]]]]" << std::endl;
+				Logger::log(Logger::LOGLEVEL_INFO) << "\n[[[[[[[ Header " << i << " ]]]]]]]" << std::endl;
 				this->multipartFormData[i].first.print();
-				std::cout << "\n[[[[[[[ Body ]]]]]]]" << std::endl;
+				Logger::log(Logger::LOGLEVEL_INFO) << "\n[[[[[[[ Body ]]]]]]]" << std::endl;
 				for (size_t j = 0; j < this->multipartFormData[i].second.size(); j++)
-					std::cout << this->multipartFormData[i].second[j];
-				std::cout << "\n\n";
+					Logger::log(Logger::LOGLEVEL_INFO) << this->multipartFormData[i].second[j];
+				Logger::log(Logger::LOGLEVEL_INFO) << "\n\n";
 			}
 		}
-	}
 #endif
+	}
 
 private:
 	ParseFlag parseFlag;

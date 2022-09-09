@@ -17,6 +17,8 @@ std::vector<std::string> RequestParser::methodTokenSet = RequestParser::initMeth
 
 void RequestParser::startlineParser(Startline &startline, const std::string &line)
 {
+	Logger::debug(LOG_LINE) << "Startline section is done\n";
+
 	std::vector<std::string> startlineTokenSet;
 
 	startlineTokenSet = splitStr(line, " ");
@@ -235,6 +237,7 @@ void RequestParser::headerParser(Header &header,
 		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format\n";
 		throw(400);
 	}
+	header.print();
 }
 
 void RequestParser::headerValueParser(std::vector<FieldValue> &fieldvalueVec,
@@ -333,10 +336,14 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 	if (header.hasField(TRANSFER_ENCODING))
 	{
 		if (header.hasFieldValue(TRANSFER_ENCODING, "chunked"))
+		{
+			Logger::debug(LOG_LINE) << "Body Type: Chunked\n";
 			return RequestParser::chunkedBodyParser(body, bodyOctets);
+		}
 	}
 	else if (header.hasField(CONTENT_LENGTH))
 	{
+		Logger::debug(LOG_LINE) << "Body Type: Content-Length\n";
 		return RequestParser::contentLengthBodyParser(body, bodyOctets, header);
 	}
 	/**
@@ -377,6 +384,7 @@ void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 	bodySet = splitStrStrict(rawdata, boundary.c_str(), boundary.length());
 	if (!bodySet.size())
 		return;
+	Logger::debug(LOG_LINE) << "This is Multipart Form-data Body\n";
 	for (size_t i = 0; i < bodySet.size() - 1; i++)
 		RequestParser::parseMultipartEachBody(body, trimStr(bodySet[i], "\r\n"));
 }
@@ -435,15 +443,20 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, const std::vector<char> &bo
 	std::vector<char> copyBodyOctets = bodyOctets;
 
 	body.chunkedParsingPrologue(lineBuffer, lineLength);
+
 	while (copyBodyOctets.size())
 	{
 		if (body.getParseFlag() == Body::CHUNKED_LENGTH)
 		{
 			if ((lineLength = RequestParser::parseChunkedLengthLine(body, copyBodyOctets, lineBuffer)) <
 					0)
+			{
+				// line length parsing 전에 입력이 먼저 끝남
 				break;
+			}
 			if (lineLength == 0)
 			{
+				// chunked의 끝을 알리는 0이 들어온 것.
 				body.setParseFlag(Body::FINISHED);
 				break;
 			}
@@ -463,10 +476,10 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, const std::vector<char> &bo
 	if (body.getParseFlag() == Body::FINISHED)
 	{
 		Logger::debug(LOG_LINE) << "Body Parse is done\n";
-		return (0);
+		return (copyBodyOctets.size());
 	}
 	body.chunkedParsingEpilogue(lineBuffer, lineLength);
-	return (-1); // 모자르다는 의미, TODO: 근데 들어온 입력이 남는다는 의미도 표현해야 한다.
+	return (-1); // 모자르다는 의미
 }
 
 ssize_t RequestParser::parseChunkedLengthLine(Body &body,
@@ -475,52 +488,34 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 {
 	size_t i;
 	ssize_t length = -1;
+	bool crFlag = false;
 
 	for (i = 0; i < bodyOctets.size(); i++)
 	{
-		if (bodyOctets[i] == '\r' || bodyOctets[i] == '\n')
+		if (bodyOctets[i] == '\n')
 		{
-			bool lineDoneFlag = false;
-
-			if (bodyOctets[i] == '\n')
+			if (lineBuffer[lineBuffer.size() - 1] != '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
 			{
-				if (lineBuffer[lineBuffer.size() - 1] == '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
-				{
-					lineBuffer.pop_back();
-					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
-					lineDoneFlag = true;
-				}
-				else
-				{
-					Logger::debug(LOG_LINE) << "Chunked body does not end with '\\r\\n'\n";
-					throw(400);
-				}
+				Logger::debug(LOG_LINE) << "Chunked body does not end with '\\r\\n'\n";
+				throw(400);
 			}
-			else
-			{
-				if (i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
-				{
-					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
-					lineDoneFlag = true;
-				}
-				else
-					lineBuffer.push_back(bodyOctets[i]);
-			}
-			if (lineDoneFlag)
-			{
-				body.setParseFlag(Body::CHUNKED_CONTENT);
-				length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
-				lineBuffer.clear();
-			}
+			lineBuffer.pop_back();
+			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1)); // end는 미포함이므로 +1
+			body.setParseFlag(Body::CHUNKED_CONTENT);
+			length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
+			lineBuffer.clear();
 			break;
 		}
-		if (!::isxdigit(bodyOctets[i]))
+		if ((!::isxdigit(bodyOctets[i]) && bodyOctets[i] != '\r') || (bodyOctets[i] == '\r' && crFlag))
 		{
 			Logger::debug(LOG_LINE) << "Length in chunked body does not hexadecimal number\n";
 			throw(400);
 		}
 		lineBuffer.push_back(bodyOctets[i]);
+		if (bodyOctets[i] == '\r')
+			crFlag = true;
 	}
+
 	return length;
 }
 
@@ -544,7 +539,7 @@ ssize_t RequestParser::parseChunkedContentLine(Body &body,
 		lineBuffer.push_back(bodyOctets[i]);
 	}
 	bodyOctets.clear();
-	return (i - lineLength);
+	return (i - (lineLength + 2));
 }
 
 ssize_t
@@ -570,7 +565,7 @@ RequestParser::contentLengthBodyParser(Body &body, std::vector<char> &bodyOctets
 	else
 	{
 		body.payload.insert(body.payload.end(), bodyOctets.begin(),
-												bodyOctets.begin() + (inputPayloadSize - remainPayloadSize));
+												bodyOctets.begin() + remainPayloadSize);
 	}
 	return (inputPayloadSize - remainPayloadSize);
 }
@@ -659,32 +654,6 @@ std::string RequestParser::trimStr(const std::string &target, const std::string 
 	}
 	return copyTarget;
 }
-
-// std::string &RequestParser::trimStrStrict(std::string &target, const std::string &charset)
-// {
-// 	size_t idx;
-// 	std::string::iterator it;
-
-// 	idx = 0;
-// 	while (idx < target.size())
-// 	{
-// 		it = target.begin();
-// 		if (charset.find(target[idx]) == std::string::npos)
-// 			break;
-// 		target.erase(it + idx);
-// 	}
-
-// 	idx = target.size() - 1;
-// 	while (idx >= 0)
-// 	{
-// 		it = target.begin();
-// 		if (charset.find(target[idx]) == std::string::npos)
-// 			break;
-// 		target.erase(it + idx);
-// 		--idx;
-// 	}
-// 	return target;
-// }
 
 std::string RequestParser::tolowerStr(const char *str)
 {

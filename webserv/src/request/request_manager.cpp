@@ -37,6 +37,7 @@ void RequestManager::pruneBuffer(void)
 void RequestManager::pruneAll(void)
 {
 	this->pruneBuffer();
+	Logger::debug(LOG_LINE) << "prune All is Called\n";
 	while (!this->requestQueue.empty())
 	{
 		this->requestQueue.pop();
@@ -111,6 +112,8 @@ size_t RequestManager::countParsedOctets(const std::string &line, const size_t &
 
 int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 {
+	size_t octetOffset;
+	octetOffset = 0;
 	try
 	{
 		while (true) // Request Queue에 대한 loop
@@ -121,9 +124,10 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 
 			parsedLength = 0;
 			initialLength = this->buf.str().length();
-			tmp.append(octets, octetSize);
+			tmp.append(octets + octetOffset, octetSize - octetOffset);
 			this->buf << tmp;
 
+			Logger::debug(LOG_LINE) << this->requestQueue.size() << "th request message is parsing...\n";
 			Request &request = this->getLatestRequest();
 			std::string line;
 			while (this->parseStage != RequestManager::STAGE_BODY && std::getline(this->buf, line))
@@ -132,30 +136,29 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 					break;
 				parsedLength += countParsedOctets(line, initialLength);
 				initialLength = 0;
-				switch (this->parseStage)
+				if (this->parseStage == RequestManager::STAGE_STARTLINE)
 				{
-				case RequestManager::STAGE_STARTLINE:
 					if (!this->detectSectionDelimiter(line)) // CRLF에 대해 trim을 한다.
 					{
 						RequestParser::startlineParser(request.getStartline(), line);
 						this->setParseStage(RequestManager::STAGE_HEADER);
 					}
-					break;
-				case RequestManager::STAGE_HEADER:
+				}
+				else if (this->parseStage == RequestManager::STAGE_HEADER)
+				{
 					if (!this->detectSectionDelimiter(line))
 					{
+						// header section이 덜 끝났을 경우
 						RequestParser::fillHeaderBuffer(this->headerbuf, line, this->headerbufSize);
 						this->headerbufSize += line.length() + 1;
 					}
 					else
 					{
+						// header section이 모두 끝났을 경우
 						RequestParser::headerParser(request.getHeader(), this->headerbuf,
 																				request.getStartline().method);
 						this->setParseStage(RequestManager::STAGE_BODY);
 					}
-					break;
-				default:
-					break;
 				}
 			}
 			if (this->buf.eof())
@@ -163,24 +166,25 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 				this->doBufferEpilogue(line);
 				break;
 			}
-			if (this->parseStage == RequestManager::STAGE_BODY)
+			std::vector<char> bodyOctets(octets + parsedLength + octetOffset, octets + octetSize);
+			ssize_t remainedCount;
+			/**
+			 * remainedCount < 0 : body가 덜 찼다.
+			 * remainedCount = 0 : body에 딱 맞게 읽었고 다 찼다.
+			 * remainedCount > 0 : body를 모두 읽고 남았다(다른 request message)
+			 */
+			Logger::debug(LOG_LINE) << "BodyOctet: " << std::string(bodyOctets.begin(), bodyOctets.end()) << "\n";
+			if ((remainedCount =
+							 RequestParser::bodyParser(request.getBody(), bodyOctets, request.getHeader())) >= 0)
 			{
-				std::vector<char> bodyOctets(octets + parsedLength, octets + octetSize);
-
-				int remainedFlag;
-				if ((remainedFlag = RequestParser::bodyParser(request.getBody(), bodyOctets,
-																											request.getHeader())) >= 0)
-				{
-					RequestParser::postBodyParser(request.getBody(), request.getHeader());
-					Logger::debug(LOG_LINE) << this->requestQueue.size()
-																	<< "th request message parsing is just completed\n";
-					this->prepareNextRequest();
-				}
-				if (remainedFlag > 0) // 남았을 경우에만 다시 loop를 돈다.
-					continue;
-				else
-					break;
+				RequestParser::postBodyParser(request.getBody(), request.getHeader());
+				Logger::debug(LOG_LINE) << this->requestQueue.size()
+																<< "th request message parsing is just completed\n";
+				octetOffset = octetSize - remainedCount;
+				this->prepareNextRequest();
 			}
+			if (remainedCount <= 0) // 남았을 경우에만 continue, 아니면 break한다.
+				break;
 		}
 	}
 	catch (int code)

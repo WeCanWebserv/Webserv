@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "../Logger.hpp"
+
 #if DEBUG
 #include <iostream>
 #endif
@@ -188,31 +190,40 @@ public:
 		return FieldValue();
 	}
 
-#if DEBUG
 	void print(void)
 	{
+		std::string str;
+
+		str.append("\n################### [ DEBUG: Header print ] ##################\n\n");
+
 		for (HeaderMap::iterator it = headerMap.begin(); it != headerMap.end(); it++)
 		{
-			// if (!it->second.size())
-			// 	continue;
-			std::cout << "[" << it->first << "] "
-								<< "\n";
+			str.append("[");
+			str.append(it->first + "]\n");
 			for (size_t i = 0; i < it->second.size(); i++)
 			{
-				std::cout << "\t"
-									<< "value[" << i << "]: " << (it->second)[i].value << std::endl;
+				char tmp[1] = {i + '0'};
+				str.append("\tvalue[");
+				str.append(tmp, 1);
+				str.append("]: ");
+				str.append((it->second)[i].value + "\n");
 				size_t j = 0;
 				for (std::map<std::string, std::string>::iterator descit =
 								 (it->second)[i].descriptions.begin();
 						 descit != (it->second)[i].descriptions.end(); descit++)
 				{
-					std::cout << "\t- description[" << j++ << "]: " << descit->first << " = "
-										<< descit->second << std::endl;
+					char tmp2[1] = {j++ + '0'};
+					str.append("\t- description[");
+					str.append(tmp2, 1);
+					str.append("]: ");
+					str.append(descit->first + " = " + descit->second + "\n");
 				}
 			}
 		}
+		str.append("\n\n##########################################################\n");
+		Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
 	}
-#endif
+
 private:
 	std::string tolowerStr(const std::string &str) const
 	{
