@@ -1,11 +1,11 @@
 #ifndef CGI_HPP
 #define CGI_HPP
 
-#include "Response.hpp"
-
 #include <sstream>
 #include <string>
 #include <unistd.h>
+
+class Response;
 
 class Cgi
 {
@@ -19,6 +19,7 @@ public:
 	Cgi(const Cgi &other);
 	~Cgi();
 
+	operator bool() const;
 	template<class Request, class Config, class Location>
 	int run(Request &req, Config &config, Location &location, int clientFd);
 	template<class Request, class Config, class Location>

@@ -94,9 +94,6 @@ void Response::process(Request &req, ConfigInfo &config)
 	if (location.allowMethod.find(req.method) == location.allowMethod.end())
 		throw(405);
 
-	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
-		throw(501); // cgi.
-
 	targetPath.replace(0, locPath.size(), location.root);
 
 	if (uriParser.isDirectory())
@@ -117,6 +114,22 @@ void Response::process(Request &req, ConfigInfo &config)
 			if (index.size() == 0)
 				throw(404);
 			targetPath += index;
+		}
+	}
+
+	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
+	{
+		cgi.run(req, config, location, 0);
+		// if (cgi.fail)
+		// 	throw(503);
+		if (req.getbody().payload.size())
+		{
+			// FIX:
+			// <server> -- req.body --> <cgi>
+		}
+		else
+		{
+			// <server> <-- cgi.result -- <cgi>
 		}
 	}
 
@@ -259,12 +272,21 @@ void Response::setBuffer()
 	{
 		tmp << (*it).first << ": " << (*it).second << CRLF;
 	}
-	tmp << CRLF;
 
-	if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
+	if (cgi)
 	{
-		if (this->body.buffer.rdbuf()->in_avail())
-			tmp << this->body.buffer.rdbuf();
+		tmp << this->body.buffer.rdbuf();
+	}
+	else
+	{
+		// end of header
+		tmp << CRLF;
+
+		if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
+		{
+			if (this->body.buffer.rdbuf()->in_avail())
+				tmp << this->body.buffer.rdbuf();
+		}
 	}
 
 	this->buffer = tmp.str();

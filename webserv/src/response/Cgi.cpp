@@ -1,10 +1,9 @@
 #include "Cgi.hpp"
 #include "../request/request.hpp"
+#include "Response.hpp"
 #include "UriParser.hpp"
 
 #include <netinet/in.h>
-#include <sstream>
-#include <string>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -13,6 +12,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <sstream>
+#include <string>
 #include <utility>
 
 namespace ft
@@ -62,6 +63,11 @@ Cgi::Cgi(const Cgi &other) : isCgi(other.isCgi), pid(other.pid)
 }
 
 Cgi::~Cgi() {}
+
+Cgi::operator bool() const
+{
+	return (this->isCgi);
+}
 
 /**
  * run(Request, ServerConfig, location, clientFd)
@@ -253,13 +259,16 @@ int Cgi::parseStatusHeader(std::stringstream &ss)
 			std::string status = firstLine.substr(statusField.size());
 			statusCode = std::atoi(status.c_str());
 		}
+		else
+		{
+			ss.seekg(0, ss.beg);
+		}
 	}
 
 	/**
 	 * reset flag & position
 	 */
 	ss.clear();
-	ss.seekg(0, ss.beg);
 
 	return (statusCode);
 }

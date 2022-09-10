@@ -1,13 +1,13 @@
 #ifndef RESPONSE_HPP
 #define RESPONSE_HPP
 
+#include "Cgi.hpp"
+
 #include <ctime>
 #include <map>
 #include <sstream>
 #include <string>
 #include <vector>
-
-class Cgi;
 
 class Response
 {
@@ -32,6 +32,7 @@ private:
 	std::size_t totalBytes;
 	bool isReady;
 	bool isClose;
+	Cgi cgi;
 
 public:
 	Response();
