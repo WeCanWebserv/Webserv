@@ -50,11 +50,12 @@ public:
 	std::size_t moveBufPosition(int nbyte);
 
 	template<class Request, class ConfigInfo>
-	std::pair<int, int> process(Request &req, ConfigInfo &config);
+	std::pair<int, int> process(Request &req, ConfigInfo &config, int clientFd);
 	template<class ConfigInfo>
 	std::pair<int, int> process(int errorCode, ConfigInfo &config, bool close = false);
 
 	int readBody();
+	int writeBody();
 
 private:
 	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
@@ -72,6 +73,7 @@ private:
 	std::string
 	generateFileListPage(const std::string &path, const std::vector<std::string> &files) const;
 
+	void clearBuffer();
 	void clearBody(Body &body);
 
 	std::vector<std::string> readDirectory(const std::string &path);

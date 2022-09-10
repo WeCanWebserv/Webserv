@@ -69,6 +69,12 @@ Cgi::operator bool() const
 	return (this->isCgi);
 }
 
+bool Cgi::fail()
+{
+	// waitpid()
+	return (false);
+}
+
 /**
  * run(Request, ServerConfig, location, clientFd)
  */

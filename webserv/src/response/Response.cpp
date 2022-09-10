@@ -1,4 +1,5 @@
 #include "Response.hpp"
+#include "../request/body.hpp"
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
@@ -58,15 +59,19 @@ bool Response::close() const
 
 void Response::clear()
 {
-	this->buffer.clear();
-	this->totalBytes = 0;
-	this->sentBytes = 0;
-
+	clearBuffer();
 	clearBody(this->body);
 
 	this->header.clear();
 
 	this->isReady = false;
+}
+
+void Response::clearBuffer()
+{
+	this->buffer.clear();
+	this->totalBytes = 0;
+	this->sentBytes = 0;
 }
 
 const char *Response::getBuffer() const
@@ -95,7 +100,7 @@ std::size_t Response::moveBufPosition(int nbyte)
  * @returns: (fd, events)
  */
 template<class Request, class ConfigInfo>
-std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
+std::pair<int, int> Response::process(Request &req, ConfigInfo &config, int clientFd)
 {
 	UriParser uriParser(req.uri);
 	std::string targetPath = uriParser.getPath();
@@ -133,17 +138,19 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 
 	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
 	{
-		cgi.run(req, config, location, 0);
-		// if (cgi.fail)
-		// 	throw(503);
+		cgi.run(req, config, location, clientFd);
+		if (cgi.fail())
+			throw(503);
 		if (req.getbody().payload.size())
 		{
-			// FIX:
-			// <server> -- req.body --> <cgi>
+			this->body = ::Body::vecToStr(req.getbody().payload);
+			return (std::make_pair(cgi.fd[1], EPOLLOUT));
 		}
 		else
 		{
-			// <server> <-- cgi.result -- <cgi>
+			::close(cgi.fd[1]);
+			this->body.fd = cgi.fd[0];
+			return (std::make_pair(cgi.fd[0], EPOLLIN));
 		}
 	}
 
@@ -256,14 +263,35 @@ int Response::readBody()
 		return (-1);
 	else if (n == 0)
 	{
-		setHeader("Content-Length", ft::toString(this->body.size));
+		if (cgi)
+			cgi.parseCgiResponse(*this);
+		else if (this->body.size)
+			setHeader("Content-Length", ft::toString(this->body.size));
+
 		setBuffer();
+
 		return (0);
 	}
 	buf[n] = '\0';
 	this->body.buffer << buf;
 	this->body.size += n;
 	return (1);
+}
+
+int Response::writeBody()
+{
+	int n;
+
+	n = write(this->cgi.fd[1], getBuffer(), getBufSize());
+	if (n == -1)
+		return (-1);
+	else if (n == 0)
+	{
+		clearBuffer();
+		return (this->cgi.fd[0]);
+	}
+	moveBufPosition(n);
+	return (0);
 }
 
 void Response::setStatusCode(int code)

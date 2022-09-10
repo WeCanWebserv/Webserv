@@ -9,7 +9,7 @@ class Response;
 
 class Cgi
 {
-private:
+public:
 	bool isCgi;
 	pid_t pid;
 	int fd[2];
@@ -20,6 +20,9 @@ public:
 	~Cgi();
 
 	operator bool() const;
+	
+	bool fail();
+
 	template<class Request, class Config, class Location>
 	int run(Request &req, Config &config, Location &location, int clientFd);
 	template<class Request, class Config, class Location>

@@ -132,7 +132,7 @@ void ServerManager::loop()
 
 						if (request.ready())
 						{
-							newEvent = response.process(request, servers[eventFd]);
+							newEvent = response.process(request, servers[eventFd], eventFd);
 						}
 					}
 					catch (int errorCode)
@@ -182,10 +182,6 @@ void ServerManager::loop()
 							else
 								this->disconnect(eventFd);
 						}
-						// if (response.ready())
-						// {
-						// 	// this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT);
-						// }
 					}
 				}
 			}
@@ -222,15 +218,17 @@ void ServerManager::loop()
 				}
 				else if (occurredEvent & EPOLLOUT)
 				{
-					// TODO: cgi
-					int rPipe = 0;
-					int n = 0;
+					int pipe = response.writeBody();
 
-					if (n <= 0)
+					if (pipe > 0)
 					{
 						this->deleteEvent(eventFd);
 						close(eventFd);
-						this->addEvent(rPipe, EPOLLIN);
+						this->addEvent(pipe, EPOLLIN);
+					}
+					else if (pipe == -1)
+					{
+						// write error
 					}
 				}
 			}
