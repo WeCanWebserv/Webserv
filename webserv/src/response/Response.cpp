@@ -3,6 +3,7 @@
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
+#include "../libft.hpp"
 
 #include <algorithm>
 #include <ctime>
@@ -18,18 +19,6 @@
 #define SERVER_NAME "webserv"
 #define SERVER_PROTOCOL "HTTP/1.1"
 #define CRLF "\r\n"
-
-namespace ft
-{
-template<class T>
-std::string toString(T value)
-{
-	std::stringstream ss;
-
-	ss << value;
-	return (ss.str());
-}
-} // namespace ft
 
 Response::Response()
 		: statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false), isClose(false)

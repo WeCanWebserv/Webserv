@@ -2,6 +2,7 @@
 #include "../request/request.hpp"
 #include "Response.hpp"
 #include "UriParser.hpp"
+#include "../libft.hpp"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -15,45 +16,6 @@
 #include <sstream>
 #include <string>
 #include <utility>
-
-namespace ft
-{
-char *strdup(const std::string &str)
-{
-	char *res;
-
-	res = new char[str.size() + 1];
-	res[0] = '\0';
-	std::strcpy(res, str.c_str());
-	return (res);
-}
-
-template<class T>
-std::string toString(T value)
-{
-	std::stringstream ss;
-
-	ss << value;
-	return (ss.str());
-}
-
-int toUnderscore(int c)
-{
-	if (c == '-')
-		return ('_');
-	return (c);
-}
-
-template<class UnaryOP>
-std::string transform(const std::string &str, UnaryOP op)
-{
-	std::string up = str;
-
-	std::transform(up.begin(), up.end(), up.begin(), op);
-	return (up);
-}
-
-} // namespace ft
 
 Cgi::Cgi() : isCgi(false), pid(-1) {}
 
