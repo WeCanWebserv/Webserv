@@ -1,11 +1,12 @@
 #include "Cgi.hpp"
+#include "../libft.hpp"
 #include "../request/request.hpp"
 #include "Response.hpp"
 #include "UriParser.hpp"
-#include "../libft.hpp"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -33,8 +34,16 @@ Cgi::operator bool() const
 
 bool Cgi::fail()
 {
-	// waitpid()
-	return (false);
+	int err;
+	int status;
+
+	err = waitpid(this->pid, &status, WNOHANG);
+	if (err == -1)
+		return (true);
+	else if (err == 0)
+		return (false); // cgi in progress
+
+	return (status != 0);
 }
 
 int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd)
@@ -47,10 +56,8 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 	 *
 	 *          reqPipe
 	 *      ---------------->
-	 *
 	 *          resPipe
 	 *      <----------------
-	 *
 	 */
 	if (pipe(reqPipe) == -1)
 		return (1);
@@ -79,7 +86,9 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		close(resPipe[0]);
 		dup2(resPipe[1], STDOUT_FILENO);
 
-		char **cmd; // = { "location.cgi", "uri.scriptName" NULL }
+		UriParser uriParser(req.getStartline().uri);
+		char *cmd[] = {ft::strdup(location.tableOfCgiBins.at(uriParser.getExtension())),
+									 ft::strdup(location.root + uriParser.getFile()), NULL};
 		char **env = generateMetaVariables(req, config, location, clientFd);
 		int err = execve(cmd[0], cmd, env);
 		exit(err);
