@@ -99,21 +99,20 @@ std::size_t Response::moveBufPosition(int nbyte)
 /**
  * @returns: (fd, events)
  */
-template<class Request, class ConfigInfo>
-std::pair<int, int> Response::process(Request &req, ConfigInfo &config, int clientFd)
+std::pair<int, int> Response::process(Request &req, const ServerConfig &config, int clientFd)
 {
-	UriParser uriParser(req.uri);
+	UriParser uriParser(req.getStartline().uri);
 	std::string targetPath = uriParser.getPath();
-	typename ConfigInfo::locationType::iterator locIter;
+	std::map<std::string, LocationConfig>::const_iterator locIter;
 
-	locIter = findLocation(targetPath, config.location);
-	if (locIter == config.location.end())
+	locIter = findLocation(targetPath, config.tableOfLocations);
+	if (locIter == config.tableOfLocations.end())
 		throw(404);
 
 	const std::string &locPath = (*locIter).first;
-	typename ConfigInfo::locationType::mapped_type &location = (*locIter).second;
+	const LocationConfig &location = (*locIter).second;
 
-	if (location.allowMethod.find(req.method) == location.allowMethod.end())
+	if (location.allowedMethods.find(req.getStartline().method) == location.allowedMethods.end())
 		throw(405);
 
 	targetPath.replace(0, locPath.size(), location.root);
@@ -123,8 +122,8 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config, int clie
 		std::vector<std::string> files;
 
 		files = readDirectory(targetPath);
-		if (location.isAutoIndex)
-			return (setBodyToDefaultPage(generateFileListPage(req.uri, files)));
+		if (location.isAutoIndexOn)
+			return (setBodyToDefaultPage(generateFileListPage(req.getStartline().uri, files)));
 		else
 		{
 			std::string index;
@@ -136,14 +135,14 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config, int clie
 		}
 	}
 
-	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
+	if (location.tableOfCgiBins.find(uriParser.getExtension()) != location.tableOfCgiBins.end())
 	{
 		cgi.run(req, config, location, clientFd);
 		if (cgi.fail())
 			throw(503);
-		if (req.getbody().payload.size())
+		if (req.getBody().payload.size())
 		{
-			this->body = ::Body::vecToStr(req.getbody().payload);
+			this->buffer = ::Body::vecToStr(req.getBody().payload);
 			return (std::make_pair(cgi.fd[1], EPOLLOUT));
 		}
 		else
@@ -161,8 +160,7 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config, int clie
 	return (std::make_pair(this->body.fd, EPOLLIN));
 }
 
-template<class ConfigInfo>
-std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool close)
+std::pair<int, int> Response::process(int errorCode, const ServerConfig &config, bool close)
 {
 	std::string errorPage;
 
@@ -176,9 +174,9 @@ std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool cl
 		setHeader("Connection", "close");
 	}
 
-	if (config.errorPages.find(errorCode) != config.errorPages.end())
+	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
-		errorPage = config.errorPages[errorCode];
+		errorPage = config.tableOfErrorPages.at(errorCode);
 		this->body.fd = open(errorPage.c_str(), O_RDONLY | O_NONBLOCK);
 		if (this->body.fd != -1)
 		{
@@ -361,10 +359,10 @@ std::string Response::getCurrentTime() const
 	return (timeInfoToString(timeInfo, format));
 }
 
-template<class Locations>
-typename Locations::iterator Response::findLocation(std::string path, Locations &location)
+std::map<std::string, LocationConfig>::const_iterator
+Response::findLocation(std::string path, const std::map<std::string, LocationConfig> &location)
 {
-	typename Locations::iterator found;
+	std::map<std::string, LocationConfig>::const_iterator found;
 	std::string loc;
 	std::string::size_type pos;
 

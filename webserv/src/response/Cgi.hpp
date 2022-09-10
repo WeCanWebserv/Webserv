@@ -1,6 +1,9 @@
 #ifndef CGI_HPP
 #define CGI_HPP
 
+#include "../Config.hpp"
+#include "../request/request.hpp"
+
 #include <sstream>
 #include <string>
 #include <unistd.h>
@@ -20,13 +23,14 @@ public:
 	~Cgi();
 
 	operator bool() const;
-	
+
 	bool fail();
 
-	template<class Request, class Config, class Location>
-	int run(Request &req, Config &config, Location &location, int clientFd);
-	template<class Request, class Config, class Location>
-	char **generateMetaVariables(Request &req, Config &config, Location &location, int clientFd);
+	int run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd);
+	char **generateMetaVariables(Request &req,
+															 const ServerConfig &config,
+															 const LocationConfig &location,
+															 int clientFd);
 
 	int parseCgiResponse(Response &res);
 	int parseStatusHeader(std::stringstream &ss);

@@ -1,6 +1,8 @@
 #ifndef RESPONSE_HPP
 #define RESPONSE_HPP
 
+#include "../Config.hpp"
+#include "../request/request.hpp"
 #include "Cgi.hpp"
 
 #include <ctime>
@@ -49,10 +51,8 @@ public:
 	std::size_t getBufSize() const;
 	std::size_t moveBufPosition(int nbyte);
 
-	template<class Request, class ConfigInfo>
-	std::pair<int, int> process(Request &req, ConfigInfo &config, int clientFd);
-	template<class ConfigInfo>
-	std::pair<int, int> process(int errorCode, ConfigInfo &config, bool close = false);
+	std::pair<int, int> process(Request &req, const ServerConfig &config, int clientFd);
+	std::pair<int, int> process(int errorCode, const ServerConfig &config, bool close = false);
 
 	int readBody();
 	int writeBody();
@@ -61,8 +61,8 @@ private:
 	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
 	std::string getCurrentTime() const;
 
-	template<class Locations>
-	typename Locations::iterator findLocation(std::string path, Locations &location);
+	std::map<std::string, LocationConfig>::const_iterator
+	findLocation(std::string path, const std::map<std::string, LocationConfig> &location);
 
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);

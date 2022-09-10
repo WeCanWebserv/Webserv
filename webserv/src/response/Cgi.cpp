@@ -75,11 +75,7 @@ bool Cgi::fail()
 	return (false);
 }
 
-/**
- * run(Request, ServerConfig, location, clientFd)
- */
-template<class Request, class Config, class Location>
-int Cgi::run(Request &req, Config &config, Location &location, int clientFd)
+int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd)
 {
 	int reqPipe[2];
 	int resPipe[2];
@@ -137,8 +133,10 @@ int Cgi::run(Request &req, Config &config, Location &location, int clientFd)
 	return (0);
 }
 
-template<class Request, class Config, class Location>
-char **Cgi::generateMetaVariables(Request &req, Config &config, Location &location, int clientFd)
+char **Cgi::generateMetaVariables(Request &req,
+																	const ServerConfig &config,
+																	const LocationConfig &location,
+																	int clientFd)
 {
 	typedef std::map<std::string, std::string> env_type;
 
@@ -157,7 +155,7 @@ char **Cgi::generateMetaVariables(Request &req, Config &config, Location &locati
 	 */
 	env["SERVER_ADDR"] = config.listennedHost;
 	env["SERVER_PORT"] = config.listennedPort;
-	env["SERVER_NAME"] = config.listOfServerNames;
+	env["SERVER_NAME"] = config.listOfServerNames.front();
 	env["SERVER_PROTOCOL"] = "HTTP/1.1";
 	env["SERVER_SOFTWARE"] = "webserv";
 
@@ -174,10 +172,10 @@ char **Cgi::generateMetaVariables(Request &req, Config &config, Location &locati
 	/**
 	 * uri
 	 */
-	UriParser uriParser(req.uri);
+	UriParser uriParser(req.getStartline().uri);
 
-	env["REQUEST_METHOD"] = req.method;
-	env["REQUEST_URI"] = req.uri;
+	env["REQUEST_METHOD"] = req.getStartline().method;
+	env["REQUEST_URI"] = req.getStartline().uri;
 	env["DOCUMENT_URI"] = uriParser.getPath();
 	env["DOCUMENT_ROOT"] = location.root;
 	env["SCRIPT_NAME"] = uriParser.getFile();
