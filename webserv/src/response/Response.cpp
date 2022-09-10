@@ -5,10 +5,12 @@
 
 #include <algorithm>
 #include <ctime>
+#include <utility>
 #include <vector>
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <sys/epoll.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -28,7 +30,14 @@ std::string toString(T value)
 }
 } // namespace ft
 
-Response::Response() : statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false) {}
+Response::Response()
+		: statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false), isClose(false)
+{}
+
+Response::Response(const Response &other)
+		: statusCode(other.statusCode), header(other.header), body(), buffer(other.buffer),
+			sentBytes(0), totalBytes(0), isReady(false), isClose(other.isClose)
+{}
 
 Response::~Response() {}
 
@@ -40,6 +49,11 @@ bool Response::ready() const
 bool Response::done() const
 {
 	return (ready() && this->sentBytes == this->totalBytes);
+}
+
+bool Response::close() const
+{
+	return (this->isClose);
 }
 
 void Response::clear()
@@ -77,8 +91,11 @@ std::size_t Response::moveBufPosition(int nbyte)
 	return (getBufSize());
 }
 
+/**
+ * @returns: (fd, events)
+ */
 template<class Request, class ConfigInfo>
-void Response::process(Request &req, ConfigInfo &config)
+std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 {
 	UriParser uriParser(req.uri);
 	std::string targetPath = uriParser.getPath();
@@ -105,10 +122,7 @@ void Response::process(Request &req, ConfigInfo &config)
 
 		files = readDirectory(targetPath);
 		if (location.isAutoIndex)
-		{
-			setBodyToDefaultPage(generateFileListPage(req.uri, files));
-			return;
-		}
+			return (setBodyToDefaultPage(generateFileListPage(req.uri, files)));
 		else
 		{
 			std::string index;
@@ -120,14 +134,15 @@ void Response::process(Request &req, ConfigInfo &config)
 		}
 	}
 
-	this->body.fd = open(targetPath.c_str(), O_RDONLY);
+	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
 	if (this->body.fd == -1)
 		throw(404);
 	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
+	return (std::make_pair(this->body.fd, EPOLLIN));
 }
 
 template<class ConfigInfo>
-void Response::process(int errorCode, ConfigInfo &config, bool close)
+std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool close)
 {
 	std::string errorPage;
 
@@ -144,22 +159,25 @@ void Response::process(int errorCode, ConfigInfo &config, bool close)
 	if (config.errorPages.find(errorCode) != config.errorPages.end())
 	{
 		errorPage = config.errorPages[errorCode];
-		this->body.fd = open(errorPage.c_str(), O_RDONLY);
-		if (this->body.fd == -1)
-			setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
-		setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
+		this->body.fd = open(errorPage.c_str(), O_RDONLY | O_NONBLOCK);
+		if (this->body.fd != -1)
+		{
+			setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
+			return (std::make_pair(this->body.fd, EPOLLIN));
+		}
 	}
-	else
-		setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
+
+	return (setBodyToDefaultPage(generateDefaultErrorPage(errorCode)));
 }
 
-void Response::setBodyToDefaultPage(const std::string &html)
+std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
 {
 	this->body.buffer << html;
 	this->body.size = html.size();
 	setHeader("Content-Length", ft::toString(this->body.size));
 	setHeader("Content-Type", MediaType::get(".html"));
 	setBuffer();
+	return (std::make_pair(-1, 0));
 }
 
 std::string Response::generateDefaultErrorPage(int code) const
@@ -176,8 +194,8 @@ std::string Response::generateDefaultErrorPage(int code) const
 	return (html.str());
 }
 
-std::string Response::generateFileListPage(
-		const std::string &path, const std::vector<std::string> &files) const
+std::string
+Response::generateFileListPage(const std::string &path, const std::vector<std::string> &files) const
 {
 	std::stringstream html;
 	std::size_t totalFiles = files.size();
@@ -340,8 +358,8 @@ std::vector<std::string> Response::readDirectory(const std::string &path)
 	return (files);
 }
 
-std::string Response::searchIndexFile(
-		const std::vector<std::string> &files, const std::vector<std::string> &indexFiles)
+std::string Response::searchIndexFile(const std::vector<std::string> &files,
+																			const std::vector<std::string> &indexFiles)
 {
 	std::size_t indexSize;
 	std::vector<std::string>::const_iterator found;
