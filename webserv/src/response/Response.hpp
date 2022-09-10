@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+class Cgi;
+
 class Response
 {
 public:
@@ -74,6 +76,8 @@ private:
 	std::vector<std::string> readDirectory(const std::string &path);
 	std::string searchIndexFile(
 			const std::vector<std::string> &files, const std::vector<std::string> &indexFiles);
+
+	friend Cgi;
 };
 
 #endif // !RESPONSE_HPP

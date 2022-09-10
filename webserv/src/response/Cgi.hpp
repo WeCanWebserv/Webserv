@@ -3,6 +3,7 @@
 
 #include "Response.hpp"
 
+#include <sstream>
 #include <string>
 #include <unistd.h>
 
@@ -22,6 +23,10 @@ public:
 	int run(Request &req, Config &config, Location &location, int clientFd);
 	template<class Request, class Config, class Location>
 	char **generateMetaVariables(Request &req, Config &config, Location &location, int clientFd);
+
+	int parseCgiResponse(Response &res);
+	int parseStatusHeader(std::stringstream &ss);
+	size_t parseContentLength(std::stringstream &ss);
 };
 
 #endif // !CGI_HPP

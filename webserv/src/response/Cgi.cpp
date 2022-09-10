@@ -4,6 +4,7 @@
 
 #include <netinet/in.h>
 #include <sstream>
+#include <string>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -220,4 +221,58 @@ char **Cgi::generateMetaVariables(Request &req, Config &config, Location &locati
 		result[i] = ft::strdup(it->first + "=" + it->second);
 	}
 	return (result);
+}
+
+int Cgi::parseCgiResponse(Response &res)
+{
+	int statusCode = parseStatusHeader(res.body.buffer);
+	size_t contentLength = parseContentLength(res.body.buffer);
+
+	res.setStatusCode(statusCode);
+	if (contentLength != 0)
+		res.setHeader("Content-Length", ft::toString(contentLength));
+	return (0);
+}
+
+int Cgi::parseStatusHeader(std::stringstream &ss)
+{
+	/**
+	 * 첫 라인이 "status: "라면 버퍼에서 status code 파싱
+	 * 아니라면 200 OK
+	 */
+	const std::string statusField = "status: ";
+	std::string firstLine;
+	int statusCode = 200;
+
+	if (std::getline(ss, firstLine))
+	{
+		firstLine = ft::transform(firstLine, ::tolower);
+
+		if (firstLine.compare(0, statusField.size(), statusField) == 0)
+		{
+			std::string status = firstLine.substr(statusField.size());
+			statusCode = std::atoi(status.c_str());
+		}
+	}
+
+	/**
+	 * reset flag & position
+	 */
+	ss.clear();
+	ss.seekg(0, ss.beg);
+
+	return (statusCode);
+}
+
+size_t Cgi::parseContentLength(std::stringstream &ss)
+{
+	const std::string endOfHeader = "\r\n\r\n";
+	std::string buffer = ss.str();
+	std::string::size_type pos;
+
+	pos = buffer.find(endOfHeader);
+	if (pos == std::string::npos)
+		return (0);
+
+	return (buffer.size() - (pos + endOfHeader.size()));
 }
