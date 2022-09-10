@@ -67,13 +67,6 @@ void Response::clear()
 	this->isReady = false;
 }
 
-void Response::clearBuffer()
-{
-	this->buffer.clear();
-	this->totalBytes = 0;
-	this->sentBytes = 0;
-}
-
 const char *Response::getBuffer() const
 {
 	return (this->buffer.c_str() + this->sentBytes);
@@ -188,6 +181,115 @@ std::pair<int, int> Response::process(int errorCode, const ServerConfig &config,
 	return (setBodyToDefaultPage(generateDefaultErrorPage(errorCode)));
 }
 
+int Response::readBody()
+{
+	const std::size_t bufSize = 4096 * 16;
+	char buf[bufSize];
+	int n;
+
+	n = read(this->body.fd, buf, bufSize - 1);
+	if (n == -1)
+		return (-1);
+	else if (n == 0)
+	{
+		if (cgi)
+			cgi.parseCgiResponse(*this);
+		else if (this->body.size)
+			setHeader("Content-Length", ft::toString(this->body.size));
+
+		setBuffer();
+
+		return (0);
+	}
+	buf[n] = '\0';
+	this->body.buffer << buf;
+	this->body.size += n;
+	return (1);
+}
+
+int Response::writeBody()
+{
+	int n;
+
+	n = write(this->cgi.fd[1], getBuffer(), getBufSize());
+	if (n == -1)
+		return (-1);
+	else if (n == 0)
+	{
+		clearBuffer();
+		return (this->cgi.fd[0]);
+	}
+	moveBufPosition(n);
+	return (0);
+}
+
+std::map<std::string, LocationConfig>::const_iterator
+Response::findLocation(std::string path, const std::map<std::string, LocationConfig> &location)
+{
+	std::map<std::string, LocationConfig>::const_iterator found;
+	std::string loc;
+	std::string::size_type pos;
+
+	while (path.size() > 0)
+	{
+		pos = path.rfind("/");
+		if (pos == std::string::npos)
+			break;
+		loc = path.substr(0, pos + 1);
+		found = location.find(loc);
+		if (found != location.end())
+			return (found);
+		path = path.substr(0, pos);
+	}
+	return (location.end());
+}
+
+void Response::setStatusCode(int code)
+{
+	this->statusCode = code;
+}
+
+void Response::setHeader(std::string name, std::string value)
+{
+	this->header[name] = value;
+}
+
+void Response::setBuffer()
+{
+	std::stringstream tmp;
+
+	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << ReasonPhrase::get(this->statusCode)
+			<< CRLF;
+
+	tmp << "Server: " << SERVER_NAME << CRLF;
+	tmp << "Date: " << getCurrentTime() << CRLF;
+	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
+			 ++it)
+	{
+		tmp << (*it).first << ": " << (*it).second << CRLF;
+	}
+
+	if (cgi)
+	{
+		tmp << this->body.buffer.rdbuf();
+	}
+	else
+	{
+		// end of header
+		tmp << CRLF;
+
+		if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
+		{
+			if (this->body.buffer.rdbuf()->in_avail())
+				tmp << this->body.buffer.rdbuf();
+		}
+	}
+
+	this->buffer = tmp.str();
+	this->totalBytes = this->buffer.size();
+	this->isReady = true;
+}
+
 std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
 {
 	this->body.buffer << html;
@@ -250,134 +352,11 @@ Response::generateFileListPage(const std::string &path, const std::vector<std::s
 	return (html.str());
 }
 
-int Response::readBody()
+void Response::clearBuffer()
 {
-	const std::size_t bufSize = 4096 * 16;
-	char buf[bufSize];
-	int n;
-
-	n = read(this->body.fd, buf, bufSize - 1);
-	if (n == -1)
-		return (-1);
-	else if (n == 0)
-	{
-		if (cgi)
-			cgi.parseCgiResponse(*this);
-		else if (this->body.size)
-			setHeader("Content-Length", ft::toString(this->body.size));
-
-		setBuffer();
-
-		return (0);
-	}
-	buf[n] = '\0';
-	this->body.buffer << buf;
-	this->body.size += n;
-	return (1);
-}
-
-int Response::writeBody()
-{
-	int n;
-
-	n = write(this->cgi.fd[1], getBuffer(), getBufSize());
-	if (n == -1)
-		return (-1);
-	else if (n == 0)
-	{
-		clearBuffer();
-		return (this->cgi.fd[0]);
-	}
-	moveBufPosition(n);
-	return (0);
-}
-
-void Response::setStatusCode(int code)
-{
-	this->statusCode = code;
-}
-
-void Response::setHeader(std::string name, std::string value)
-{
-	this->header[name] = value;
-}
-
-void Response::setBuffer()
-{
-	std::stringstream tmp;
-
-	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << ReasonPhrase::get(this->statusCode)
-			<< CRLF;
-
-	tmp << "Server: " << SERVER_NAME << CRLF;
-	tmp << "Date: " << getCurrentTime() << CRLF;
-	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
-			 ++it)
-	{
-		tmp << (*it).first << ": " << (*it).second << CRLF;
-	}
-
-	if (cgi)
-	{
-		tmp << this->body.buffer.rdbuf();
-	}
-	else
-	{
-		// end of header
-		tmp << CRLF;
-
-		if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
-		{
-			if (this->body.buffer.rdbuf()->in_avail())
-				tmp << this->body.buffer.rdbuf();
-		}
-	}
-
-	this->buffer = tmp.str();
-	this->totalBytes = this->buffer.size();
-	this->isReady = true;
-}
-
-std::string Response::timeInfoToString(std::tm *timeInfo, const std::string format) const
-{
-	const int bufSize = 32;
-	char buf[bufSize];
-
-	std::strftime(buf, bufSize, format.c_str(), timeInfo);
-	return (std::string(buf));
-}
-
-std::string Response::getCurrentTime() const
-{
-	std::string format;
-	std::time_t rawTime;
-	std::tm *timeInfo;
-
-	format = "%a, %d %b %G %T GMT";
-	std::time(&rawTime);
-	timeInfo = std::gmtime(&rawTime);
-	return (timeInfoToString(timeInfo, format));
-}
-
-std::map<std::string, LocationConfig>::const_iterator
-Response::findLocation(std::string path, const std::map<std::string, LocationConfig> &location)
-{
-	std::map<std::string, LocationConfig>::const_iterator found;
-	std::string loc;
-	std::string::size_type pos;
-
-	while (path.size() > 0)
-	{
-		pos = path.rfind("/");
-		if (pos == std::string::npos)
-			break;
-		loc = path.substr(0, pos + 1);
-		found = location.find(loc);
-		if (found != location.end())
-			return (found);
-		path = path.substr(0, pos);
-	}
-	return (location.end());
+	this->buffer.clear();
+	this->totalBytes = 0;
+	this->sentBytes = 0;
 }
 
 void Response::clearBody(Body &targetBody)
@@ -420,4 +399,25 @@ std::string Response::searchIndexFile(const std::vector<std::string> &files,
 			return (indexFiles[i]);
 	}
 	return ("");
+}
+
+std::string Response::timeInfoToString(std::tm *timeInfo, const std::string format) const
+{
+	const int bufSize = 32;
+	char buf[bufSize];
+
+	std::strftime(buf, bufSize, format.c_str(), timeInfo);
+	return (std::string(buf));
+}
+
+std::string Response::getCurrentTime() const
+{
+	std::string format;
+	std::time_t rawTime;
+	std::tm *timeInfo;
+
+	format = "%a, %d %b %G %T GMT";
+	std::time(&rawTime);
+	timeInfo = std::gmtime(&rawTime);
+	return (timeInfoToString(timeInfo, format));
 }

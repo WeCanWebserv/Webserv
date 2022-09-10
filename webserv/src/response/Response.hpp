@@ -58,9 +58,6 @@ public:
 	int writeBody();
 
 private:
-	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
-	std::string getCurrentTime() const;
-
 	std::map<std::string, LocationConfig>::const_iterator
 	findLocation(std::string path, const std::map<std::string, LocationConfig> &location);
 
@@ -79,6 +76,9 @@ private:
 	std::vector<std::string> readDirectory(const std::string &path);
 	std::string searchIndexFile(const std::vector<std::string> &files,
 															const std::vector<std::string> &indexFiles);
+
+	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
+	std::string getCurrentTime() const;
 
 	friend Cgi;
 };
