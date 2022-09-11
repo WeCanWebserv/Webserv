@@ -127,7 +127,7 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			tmp.append(octets + octetOffset, octetSize - octetOffset);
 			this->buf << tmp;
 
-			Logger::debug(LOG_LINE) << this->requestQueue.size() << "th request message is parsing...\n";
+			Logger::debug(LOG_LINE) << "[ " << this->requestQueue.size() << "th ] request message is parsing...\n";
 			Request &request = this->getLatestRequest();
 			std::string line;
 			while (this->parseStage != RequestManager::STAGE_BODY && std::getline(this->buf, line))
@@ -173,7 +173,6 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			 * remainedCount = 0 : body에 딱 맞게 읽었고 다 찼다.
 			 * remainedCount > 0 : body를 모두 읽고 남았다(다른 request message)
 			 */
-			Logger::debug(LOG_LINE) << "BodyOctet: " << std::string(bodyOctets.begin(), bodyOctets.end()) << "\n";
 			if ((remainedCount =
 							 RequestParser::bodyParser(request.getBody(), bodyOctets, request.getHeader())) >= 0)
 			{

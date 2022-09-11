@@ -40,15 +40,6 @@ private:
 	HeaderMap headerMap;
 
 public:
-	/**
-	 * getHeaderMap
-	* insertField
-	* hasField
-	* findField
-	* findFieldValueList
-	* hasFieldValue
-	* findFieldValue
-	*/
 	Header()
 	{
 		std::vector<std::string> tokenvec;
@@ -220,7 +211,7 @@ public:
 				}
 			}
 		}
-		str.append("\n\n##########################################################\n");
+		str.append("\n##########################################################\n");
 		Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
 	}
 

@@ -3,14 +3,18 @@
 
 #include "field_value.hpp"
 #include "header.hpp"
+#include "sstream"
 #include <map>
 #include <string>
 #include <vector>
 
 #include "../Logger.hpp"
 
+class RequestParser;
+
 struct Body
 {
+public:
 	std::vector<char> payload;
 	std::vector<std::pair<Header, std::vector<char> > > multipartFormData;
 
@@ -23,6 +27,9 @@ struct Body
 		return (std::vector<char>(str.begin(), str.end()));
 	}
 
+	Body() : parseFlag(CHUNKED_LENGTH), lineLength(0) {}
+
+private:
 	enum ParseFlag
 	{
 		CHUNKED_LENGTH,
@@ -30,7 +37,10 @@ struct Body
 		FINISHED
 	};
 
-	Body() : parseFlag(CHUNKED_LENGTH), lineLength(0) {}
+	friend class RequestParser;
+	ParseFlag parseFlag;
+	std::vector<char> lineBuffer;
+	ssize_t lineLength;
 
 	void chunkedParsingPrologue(std::vector<char> &previousBuffer, ssize_t &previousLength)
 	{
@@ -57,38 +67,37 @@ struct Body
 public:
 	void print(void)
 	{
-		std::string str;
+		std::stringstream ss;
 
-		str.append("\n################### [ DEBUG: Body print ] ##################\n\n");
-		str.append(this->payload.begin(), this->payload.end());
-		str.append("\n\n##########################################################\n");
-		Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
-#if DEBUG
-		std::cout << str << std::endl;
-#endif
+		ss << "\n################### [ DEBUG: Body print ] ##################\n\n";
+		ss << std::string(this->payload.begin(), this->payload.end());
 
-#if DEBUG > 2
+		// #if DEBUG > 2
 		if (this->multipartFormData.size())
 		{
-			str.clear();
-			Logger::log(Logger::LOGLEVEL_INFO) << "#########[ Body: Multipart Form Data ]#########\n";
+			ss << "\n\n############################ [ Body: Multipart Form Data ] "
+						"##############################\n";
 			for (size_t i = 0; i < this->multipartFormData.size(); i++)
 			{
-				Logger::log(Logger::LOGLEVEL_INFO) << "\n[[[[[[[ Header " << i << " ]]]]]]]" << std::endl;
-				this->multipartFormData[i].first.print();
-				Logger::log(Logger::LOGLEVEL_INFO) << "\n[[[[[[[ Body ]]]]]]]" << std::endl;
-				for (size_t j = 0; j < this->multipartFormData[i].second.size(); j++)
-					Logger::log(Logger::LOGLEVEL_INFO) << this->multipartFormData[i].second[j];
-				Logger::log(Logger::LOGLEVEL_INFO) << "\n\n";
-			}
-		}
-#endif
-	}
+				ss << "\n########################## < Header " << i << " > ##########################"
+					 << std::endl;
+				Logger::log(Logger::LOGLEVEL_INFO) << ss.str() << "\n";
 
-private:
-	ParseFlag parseFlag;
-	std::vector<char> lineBuffer;
-	ssize_t lineLength;
+				this->multipartFormData[i].first.print();
+
+				ss.str("");
+				ss << "\n########################## < Body > ##########################" << std::endl;
+				for (size_t j = 0; j < this->multipartFormData[i].second.size(); j++)
+					ss << this->multipartFormData[i].second[j];
+				ss << "\n\n";
+			}
+			ss << "######################################################################################"
+						"#####\n";
+		}
+		ss << "\n##########################################################\n";
+		Logger::log(Logger::LOGLEVEL_INFO) << ss.str() << "\n";
+		// #endif
+	}
 };
 
 #endif

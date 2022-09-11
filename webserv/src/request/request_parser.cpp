@@ -32,9 +32,17 @@ void RequestParser::startlineParser(Startline &startline, const std::string &lin
 	RequestParser::startlineURIParser(startline.uri, startlineTokenSet[1], startline.method);
 	RequestParser::startlineHTTPVersionParser(startline.httpVersion,
 																						trimStr(startlineTokenSet[2], "\r"));
-	Logger::log(Logger::LOGLEVEL_INFO)
-			<< "\n[ Parsed Startline Info ]\nMethod: " << startline.method << "\nURI: " << startline.uri
-			<< "\nHTTP Version: " << startline.httpVersion << "\n\n";
+	std::string str;
+
+	str.append("\n################### [ DEBUG: Startline print ] ##################\n\n");
+	str.append("\n[ Parsed Startline Info ]\nMethod: ");
+	str.append(startline.method);
+	str.append("\nURI: ");
+	str.append(startline.uri);
+	str.append("\nHTTP Version: ");
+	str.append(startline.httpVersion);
+	str.append("\n##########################################################\n");
+	Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
 }
 
 void RequestParser::startlineMethodParser(std::string &method, const std::string &token)
@@ -357,15 +365,15 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 
 void RequestParser::postBodyParser(Body &body, Header &header)
 {
-#if DEBUG
-	body.print();
-#endif
 	FieldValue fieldvalue;
 	std::map<std::string, std::string>::const_iterator boundary;
 
 	fieldvalue = header.getFieldValue("Content-Type", "multipart/form-data");
 	if (!fieldvalue.value.size())
+	{
+		body.print();
 		return;
+	}
 	boundary = fieldvalue.descriptions.find("boundary");
 	if (boundary == fieldvalue.descriptions.end())
 	{
@@ -373,6 +381,7 @@ void RequestParser::postBodyParser(Body &body, Header &header)
 		throw(400);
 	}
 	RequestParser::parseMultipartBody(body, boundary->second);
+	body.print();
 }
 
 void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
