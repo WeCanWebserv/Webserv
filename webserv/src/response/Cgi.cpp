@@ -4,6 +4,7 @@
 #include "Response.hpp"
 #include "UriParser.hpp"
 
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -100,6 +101,9 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 
 		fd[0] = resPipe[0];
 		fd[1] = reqPipe[1];
+
+		fcntl(fd[0], F_SETFL, O_NONBLOCK);
+		fcntl(fd[1], F_SETFL, O_NONBLOCK);
 	}
 	return (0);
 }
