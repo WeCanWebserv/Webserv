@@ -17,12 +17,14 @@ std::vector<std::string> RequestParser::methodTokenSet = RequestParser::initMeth
 
 void RequestParser::startlineParser(Startline &startline, const std::string &line)
 {
+	Logger::debug(LOG_LINE) << "Startline section is done\n";
+
 	std::vector<std::string> startlineTokenSet;
 
 	startlineTokenSet = splitStr(line, " ");
 	if (startlineTokenSet.size() != 3)
 	{
-		Logger::debug(LOG_LINE) << "Startline token count is not 3";
+		Logger::debug(LOG_LINE) << "Startline token count is not 3\n";
 		throw(400);
 	}
 
@@ -30,9 +32,17 @@ void RequestParser::startlineParser(Startline &startline, const std::string &lin
 	RequestParser::startlineURIParser(startline.uri, startlineTokenSet[1], startline.method);
 	RequestParser::startlineHTTPVersionParser(startline.httpVersion,
 																						trimStr(startlineTokenSet[2], "\r"));
-	Logger::log(Logger::LOGLEVEL_INFO)
-			<< "\n[ Parsed Startline Info ]\nMethod: " << startline.method << "\nURI: " << startline.uri
-			<< "\nHTTP Version: " << startline.httpVersion << "\n\n";
+	std::string str;
+
+	str.append("\n################### [ DEBUG: Startline print ] ##################\n\n");
+	str.append("\n[ Parsed Startline Info ]\nMethod: ");
+	str.append(startline.method);
+	str.append("\nURI: ");
+	str.append(startline.uri);
+	str.append("\nHTTP Version: ");
+	str.append(startline.httpVersion);
+	str.append("\n##########################################################\n");
+	Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
 }
 
 void RequestParser::startlineMethodParser(std::string &method, const std::string &token)
@@ -44,7 +54,7 @@ void RequestParser::startlineMethodParser(std::string &method, const std::string
 	 */
 	if ((idx = findToken(token, RequestParser::methodTokenSet)) < 0)
 	{
-		Logger::debug(LOG_LINE) << "No match method in Method Tokens";
+		Logger::debug(LOG_LINE) << "No match method in Method Tokens\n";
 		throw(400);
 	}
 	method = RequestParser::methodTokenSet[idx];
@@ -71,7 +81,7 @@ void RequestParser::startlineURIParser(std::string &uri,
 	result = result || RequestParser::checkURIAsteriskForm(uri, token, method);
 	if (!result)
 	{
-		Logger::debug(LOG_LINE) << "No matched uri form";
+		Logger::debug(LOG_LINE) << "No matched uri form\n";
 		throw(400);
 	}
 }
@@ -143,13 +153,13 @@ void RequestParser::startlineHTTPVersionParser(std::string &httpVersion, const s
 	tokenset = splitStr(token, "/");
 	if (tokenset[0].compare("HTTP"))
 	{
-		Logger::debug(LOG_LINE) << "Protocol is not HTTP";
+		Logger::debug(LOG_LINE) << "Protocol is not HTTP\n";
 		throw(400);
 	}
 	versionTokenSet = splitStr(versionList, ", ");
 	if ((idx = findToken(tokenset[1], versionTokenSet)) < 0)
 	{
-		Logger::debug(LOG_LINE) << "Protocol version is not valid";
+		Logger::debug(LOG_LINE) << "Protocol version is not valid\n";
 		throw(400);
 	}
 	httpVersion = tokenset[1];
@@ -165,7 +175,7 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 
 	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
 	{
-		Logger::debug(LOG_LINE) << "Header secion size is too long";
+		Logger::debug(LOG_LINE) << "Header secion size is too long\n";
 		throw(431); // rfc6585.5
 	}
 	headerToken = trimStr(const_cast<std::string &>(line), "\r\n");
@@ -177,7 +187,7 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	}
 	if (tmp[0].length() > RequestParser::maxHeaderFieldSize)
 	{
-		Logger::debug(LOG_LINE) << "Header field-name is too long";
+		Logger::debug(LOG_LINE) << "Header field-name is too long\n";
 		throw(431);
 	}
 	tmp[0] = tolowerStr(tmp[0].c_str());
@@ -198,12 +208,12 @@ void RequestParser::headerParser(Header &header,
 																 std::map<std::string, std::string> &headerbuf,
 																 const std::string &method)
 {
-	Logger::debug(LOG_LINE) << "Header section is done";
+	Logger::debug(LOG_LINE) << "Header section is done\n";
 	std::vector<FieldValue> fieldvalueVec;
 
 	if (!RequestParser::checkHeaderFieldContain(headerbuf, "Host"))
 	{
-		Logger::debug(LOG_LINE) << "Header Section does not contain 'Host' field";
+		Logger::debug(LOG_LINE) << "Header Section does not contain 'Host' field\n";
 		throw(400);
 	}
 	if (RequestParser::checkHeaderFieldContain(headerbuf, TRANSFER_ENCODING) &&
@@ -218,7 +228,7 @@ void RequestParser::headerParser(Header &header,
 		{
 			if (!(method == "GET" || method == "HEAD"))
 			{
-				Logger::debug(LOG_LINE) << "Length is required";
+				Logger::debug(LOG_LINE) << "Length is required\n";
 				throw(411); // length required error
 			}
 		}
@@ -232,9 +242,10 @@ void RequestParser::headerParser(Header &header,
 	}
 	if (!RequestParser::validateHeaderField(header))
 	{
-		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format";
+		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format\n";
 		throw(400);
 	}
+	header.print();
 }
 
 void RequestParser::headerValueParser(std::vector<FieldValue> &fieldvalueVec,
@@ -333,10 +344,14 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 	if (header.hasField(TRANSFER_ENCODING))
 	{
 		if (header.hasFieldValue(TRANSFER_ENCODING, "chunked"))
+		{
+			Logger::debug(LOG_LINE) << "Body Type: Chunked\n";
 			return RequestParser::chunkedBodyParser(body, bodyOctets);
+		}
 	}
 	else if (header.hasField(CONTENT_LENGTH))
 	{
+		Logger::debug(LOG_LINE) << "Body Type: Content-Length\n";
 		return RequestParser::contentLengthBodyParser(body, bodyOctets, header);
 	}
 	/**
@@ -344,33 +359,29 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 	 * 나머지 경우는 HeaderParser가 완성된 후로 validation을 완료 하였다.
 	 */
 
-	std::cout << "************************hello\n";
-	header.print();
-	std::cout << std::boolalpha;
-	std::cout <<"TRANSFER_ENCODING" << header.hasField(TRANSFER_ENCODING) << std::endl;
-	std::cout <<"TRANSFER_ENCODING:chunked" << header.hasFieldValue(TRANSFER_ENCODING, "chunked") << std::endl;
 	body.setParseFlag(Body::FINISHED);
 	return (0);
 }
 
 void RequestParser::postBodyParser(Body &body, Header &header)
 {
-#if DEBUG
-	body.print();
-#endif
 	FieldValue fieldvalue;
 	std::map<std::string, std::string>::const_iterator boundary;
 
 	fieldvalue = header.getFieldValue("Content-Type", "multipart/form-data");
 	if (!fieldvalue.value.size())
+	{
+		body.print();
 		return;
+	}
 	boundary = fieldvalue.descriptions.find("boundary");
 	if (boundary == fieldvalue.descriptions.end())
 	{
-		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body";
+		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body\n";
 		throw(400);
 	}
 	RequestParser::parseMultipartBody(body, boundary->second);
+	body.print();
 }
 
 void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
@@ -382,6 +393,7 @@ void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 	bodySet = splitStrStrict(rawdata, boundary.c_str(), boundary.length());
 	if (!bodySet.size())
 		return;
+	Logger::debug(LOG_LINE) << "This is Multipart Form-data Body\n";
 	for (size_t i = 0; i < bodySet.size() - 1; i++)
 		RequestParser::parseMultipartEachBody(body, trimStr(bodySet[i], "\r\n"));
 }
@@ -394,7 +406,7 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 	if (sectionSet.size() > 2)
 	{
 		Logger::debug(LOG_LINE)
-				<< "Multipart format body does not have header-body pair || section delimiter is invalid";
+				<< "Multipart format body does not have header-body pair || section delimiter is invalid\n";
 		throw(400);
 	}
 	if (sectionSet.size() == 1)
@@ -440,16 +452,20 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, const std::vector<char> &bo
 	std::vector<char> copyBodyOctets = bodyOctets;
 
 	body.chunkedParsingPrologue(lineBuffer, lineLength);
-	std::cout << "*************************hihihih\n\n";
+
 	while (copyBodyOctets.size())
 	{
 		if (body.getParseFlag() == Body::CHUNKED_LENGTH)
 		{
 			if ((lineLength = RequestParser::parseChunkedLengthLine(body, copyBodyOctets, lineBuffer)) <
 					0)
+			{
+				// line length parsing 전에 입력이 먼저 끝남
 				break;
+			}
 			if (lineLength == 0)
 			{
+				// chunked의 끝을 알리는 0이 들어온 것.
 				body.setParseFlag(Body::FINISHED);
 				break;
 			}
@@ -468,11 +484,11 @@ ssize_t RequestParser::chunkedBodyParser(Body &body, const std::vector<char> &bo
 	}
 	if (body.getParseFlag() == Body::FINISHED)
 	{
-		Logger::debug(LOG_LINE) << "Body Parse is done";
-		return (0);
+		Logger::debug(LOG_LINE) << "Body Parse is done\n";
+		return (copyBodyOctets.size());
 	}
 	body.chunkedParsingEpilogue(lineBuffer, lineLength);
-	return (-1); // 모자르다는 의미, TODO: 근데 들어온 입력이 남는다는 의미도 표현해야 한다.
+	return (-1); // 모자르다는 의미
 }
 
 ssize_t RequestParser::parseChunkedLengthLine(Body &body,
@@ -481,52 +497,34 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 {
 	size_t i;
 	ssize_t length = -1;
+	bool crFlag = false;
 
 	for (i = 0; i < bodyOctets.size(); i++)
 	{
-		if (bodyOctets[i] == '\r' || bodyOctets[i] == '\n')
+		if (bodyOctets[i] == '\n')
 		{
-			bool lineDoneFlag = false;
-
-			if (bodyOctets[i] == '\n')
+			if (lineBuffer[lineBuffer.size() - 1] != '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
 			{
-				if (lineBuffer[lineBuffer.size() - 1] == '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
-				{
-					lineBuffer.pop_back();
-					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1));
-					lineDoneFlag = true;
-				}
-				else
-				{
-					Logger::debug(LOG_LINE) << "Chunked body does not end with '\\r\\n'";
-					throw(400);
-				}
+				Logger::debug(LOG_LINE) << "Chunked body does not end with '\\r\\n'\n";
+				throw(400);
 			}
-			else
-			{
-				if (i + 1 < bodyOctets.size() && bodyOctets[i + 1] == '\n')
-				{
-					bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 2));
-					lineDoneFlag = true;
-				}
-				else
-					lineBuffer.push_back(bodyOctets[i]);
-			}
-			if (lineDoneFlag)
-			{
-				body.setParseFlag(Body::CHUNKED_CONTENT);
-				length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
-				lineBuffer.clear();
-			}
+			lineBuffer.pop_back();
+			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1)); // end는 미포함이므로 +1
+			body.setParseFlag(Body::CHUNKED_CONTENT);
+			length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
+			lineBuffer.clear();
 			break;
 		}
-		if (!::isxdigit(bodyOctets[i]))
+		if ((!::isxdigit(bodyOctets[i]) && bodyOctets[i] != '\r') || (bodyOctets[i] == '\r' && crFlag))
 		{
-			Logger::debug(LOG_LINE) << "Length in chunked body does not hexadecimal number";
+			Logger::debug(LOG_LINE) << "Length in chunked body does not hexadecimal number\n";
 			throw(400);
 		}
 		lineBuffer.push_back(bodyOctets[i]);
+		if (bodyOctets[i] == '\r')
+			crFlag = true;
 	}
+
 	return length;
 }
 
@@ -550,7 +548,7 @@ ssize_t RequestParser::parseChunkedContentLine(Body &body,
 		lineBuffer.push_back(bodyOctets[i]);
 	}
 	bodyOctets.clear();
-	return (i - lineLength);
+	return (i - (lineLength + 2));
 }
 
 ssize_t
@@ -576,7 +574,7 @@ RequestParser::contentLengthBodyParser(Body &body, std::vector<char> &bodyOctets
 	else
 	{
 		body.payload.insert(body.payload.end(), bodyOctets.begin(),
-												bodyOctets.begin() + (inputPayloadSize - remainPayloadSize));
+												bodyOctets.begin() + remainPayloadSize);
 	}
 	return (inputPayloadSize - remainPayloadSize);
 }
@@ -665,32 +663,6 @@ std::string RequestParser::trimStr(const std::string &target, const std::string 
 	}
 	return copyTarget;
 }
-
-// std::string &RequestParser::trimStrStrict(std::string &target, const std::string &charset)
-// {
-// 	size_t idx;
-// 	std::string::iterator it;
-
-// 	idx = 0;
-// 	while (idx < target.size())
-// 	{
-// 		it = target.begin();
-// 		if (charset.find(target[idx]) == std::string::npos)
-// 			break;
-// 		target.erase(it + idx);
-// 	}
-
-// 	idx = target.size() - 1;
-// 	while (idx >= 0)
-// 	{
-// 		it = target.begin();
-// 		if (charset.find(target[idx]) == std::string::npos)
-// 			break;
-// 		target.erase(it + idx);
-// 		--idx;
-// 	}
-// 	return target;
-// }
 
 std::string RequestParser::tolowerStr(const char *str)
 {
