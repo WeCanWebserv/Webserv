@@ -97,6 +97,14 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	if (location.allowedMethods.find(req.getStartline().method) == location.allowedMethods.end())
 		throw(405);
 
+	if (location.isRedirectionSet)
+	{
+		setStatusCode(location.redirectionSetting.first);
+		setHeader("Location", location.redirectionSetting.second);
+		setBuffer();
+		return (std::make_pair(-1, 0));
+	}
+
 	targetPath.replace(0, locPath.size(), location.root);
 
 	if (uriParser.isDirectory())
