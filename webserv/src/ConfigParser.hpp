@@ -208,21 +208,9 @@ struct ServerBlock
 			{
 				if (tokens.size() != 3)
 					throw std::runtime_error("invalied server block: listen");
-				std::stringstream buffer;
-				buffer.str(tokens[1]);
-				int ipAddress;
-				buffer >> ipAddress;
-				if (!buffer.eof())
-					throw std::runtime_error("invalied server block: listen");
-				serverConfig.listennedHost = ipAddress;
-
-				buffer.clear();
-				int port;
-				buffer.str(tokens[2]);
-				buffer >> port;
-				if (!buffer.eof())
-					throw std::runtime_error("invalied server block: listen");
-				serverConfig.listennedPort = port;
+				// 유효한 아이피 어드레스 포맷, 유효한 정수인지 확인이 필요할 수 있음.
+				serverConfig.listennedHost = tokens[1];
+				serverConfig.listennedPort = tokens[2];
 				break;
 			}
 			case SERV_MAX_REQUEST_BODY_SIZE:

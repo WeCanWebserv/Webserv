@@ -41,8 +41,8 @@ struct ServerConfig
 	std::vector<std::string> listOfServerNames;
 	std::map<int, std::string> tableOfErrorPages;
 	std::map<std::string, LocationConfig> tableOfLocations;
-	int listennedHost;
-	int listennedPort;
+  	std::string listennedHost;
+	std::string listennedPort;
 	int maxRequestBodySize;
 };
 // Example 1:

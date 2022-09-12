@@ -1,11 +1,13 @@
 #include "ServerManager.hpp"
 
+#include <arpa/inet.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 #include <exception>
 #include <iostream>
@@ -27,7 +29,7 @@ ServerManager::ServerManager(const char *path)
 	this->epollFd = epoll_create(this->gMaxEvents);
 	if (this->epollFd == -1)
 		throw std::runtime_error("epoll_create");
-	
+
 	const ConfigParser parser(path);
 	const Config &config = parser.getConfig();
 	const std::vector<ServerConfig> &serverConfigs = config.serverConfigs;
@@ -42,10 +44,11 @@ ServerManager::ServerManager(const char *path)
 		else
 			this->fdInUse.insert(socketFd);
 
-		ServerConfig serverConfig = serverConfigs[idx];
-		sockAddr.sin_addr.s_addr = htonl(serverConfig.listennedHost);
-		sockAddr.sin_port = htons(serverConfig.listennedPort);
-		std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort) << std::endl;
+		const ServerConfig &serverConfig = serverConfigs[idx];
+		sockAddr.sin_addr.s_addr = inet_addr(serverConfig.listennedHost.c_str());
+		sockAddr.sin_port = htons(std::atoi(serverConfig.listennedPort.c_str()));
+
+		// std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort) << std::endl;
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
@@ -78,7 +81,7 @@ void ServerManager::clear()
 }
 
 void ServerManager::loop()
-{		
+{
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
@@ -130,10 +133,10 @@ void ServerManager::loop()
 						// TODO: Request Buffer Handling @jungwkim
 						// ...
 
-						if (request.ready())
-						{
-							newEvent = response.process(request, servers[eventFd], eventFd);
-						}
+						// if (request.ready())
+						// {
+						// 	newEvent = response.process(request, servers[eventFd], eventFd);
+						// }
 					}
 					catch (int errorCode)
 					{
@@ -273,7 +276,8 @@ void ServerManager::connect(int serverFd)
 	int fd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	this->fdInUse.insert(fd);
-	std::cout << "id [" << fd << "]: " << "connected\n";
+	std::cout << "id [" << fd << "]: "
+						<< "connected\n";
 	if (fd == -1)
 		return;
 
@@ -288,7 +292,8 @@ void ServerManager::disconnect(int fd)
 	this->deleteEvent(fd);
 	connections.erase(fd);
 	close(fd);
-	std::cout << "id [" << fd << "]: " << "disconnected\n";
+	std::cout << "id [" << fd << "]: "
+						<< "disconnected\n";
 }
 
 int ServerManager::receive(int fd)
