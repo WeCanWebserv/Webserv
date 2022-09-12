@@ -22,8 +22,8 @@ struct LocationBlock
 		LOC_AUTOINDEX,
 		LOC_REDIRECTION,
 		LOC_ALLOWED_METHODS,
-		LOC_CGI_BIN,
-		LOC_CGI_UPLOAD
+		LOC_CGI_BIN
+		// LOC_CGI_UPLOAD
 	};
 
 	std::set<std::string> availableMethods;
@@ -41,7 +41,7 @@ struct LocationBlock
 		kindOf["return"] = LOC_REDIRECTION;
 		kindOf["allowed_methods"] = LOC_ALLOWED_METHODS;
 		kindOf["cgi_bin"] = LOC_CGI_BIN;
-		kindOf["cgi_upload"] = LOC_CGI_UPLOAD;
+		// kindOf["cgi_upload"] = LOC_CGI_UPLOAD;
 
 		availableMethods.insert(std::string("GET"));
 		availableMethods.insert(std::string("POST"));
@@ -122,19 +122,21 @@ struct LocationBlock
 					throw std::runtime_error("invalid location block: cgi_bin: duplicated");
 				break;
 			}
-			case LOC_CGI_UPLOAD:
-			{
-				if (tokens.size() != 3)
-					throw std::runtime_error("invalid location block: cgi_upload:");
-				if (tokens[1].front() != '.')
-					throw std::runtime_error("invalid location block: cgi_upload:");
-				if (locationConfig.tableOfCgiBins.find(tokens[1]) ==
-						locationConfig.tableOfCgiBins.end())
-					throw std::runtime_error("invalid location block: cgi_upload:");
-				if (locationConfig.tableOfCgiUploads.insert(std::make_pair(tokens[1], tokens[2])).second ==
-						false)
-					throw std::runtime_error("invalid location block: cgi_upload: duplicated");
-			}
+			// case LOC_CGI_UPLOAD:
+			// {
+			// 	if (tokens.size() != 3)
+			// 		throw std::runtime_error("invalid location block: cgi_upload:");
+			// 	if (tokens[1].front() != '.')
+			// 		throw std::runtime_error("invalid location block: cgi_upload:");
+			// 	if (locationConfig.tableOfCgiBins.find(tokens[1]) ==
+			// 			locationConfig.tableOfCgiBins.end())
+			// 		throw std::runtime_error("invalid location block: cgi_upload:");
+			// 	if (locationConfig.tableOfCgiUploads.insert(std::make_pair(tokens[1], tokens[2])).second ==
+			// 			false)
+			// 		throw std::runtime_error("invalid location block: cgi_upload: duplicated");
+			// }
+			default:
+				break;
 			}
 		}
 		return locationConfig;

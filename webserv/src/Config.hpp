@@ -14,7 +14,7 @@ struct LocationConfig
 	std::string root;
 	std::vector<std::string> indexFiles;
 	std::map<std::string, std::string> tableOfCgiBins;
-	std::map<std::string, std::string> tableOfCgiUploads;
+	// std::map<std::string, std::string> tableOfCgiUploads;
 	std::pair<int, std::string> redirectionSetting;
 	std::set<std::string> allowedMethods;
 	bool isAutoIndexOn;
