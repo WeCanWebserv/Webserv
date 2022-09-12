@@ -56,6 +56,12 @@ bool Cgi::fail()
 	return (status != 0);
 }
 
+void Cgi::clear()
+{
+	this->pid = -1;
+	this->isCgi = false;
+}
+
 int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd)
 {
 	int reqPipe[2];
@@ -69,6 +75,7 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 	 *          resPipe
 	 *      <----------------
 	 */
+	this->isCgi = true;
 	if (pipe(reqPipe) == -1)
 		return (1);
 	if (pipe(resPipe) == -1)

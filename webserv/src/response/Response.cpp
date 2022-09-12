@@ -54,6 +54,7 @@ void Response::clear()
 	clearBody(this->body);
 
 	this->header.clear();
+	this->cgi.clear();
 
 	this->isReady = false;
 }
