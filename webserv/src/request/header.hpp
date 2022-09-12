@@ -1,11 +1,12 @@
 #ifndef __FT_HEADER_H__
 #define __FT_HEADER_H__
 
-#include "field_value.hpp"
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
 
+#include "field_value.hpp"
 #include "../Logger.hpp"
 
 #if DEBUG

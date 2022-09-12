@@ -3,16 +3,16 @@
 
 #include "response/Response.hpp"
 
-class Request
-{
-public:
-	Request() {}
-	~Request() {}
-	bool ready()
-	{
-		return false;
-	}
-};
+// class Request
+// {
+// public:
+// 	Request() {}
+// 	~Request() {}
+// 	bool ready()
+// 	{
+// 		return false;
+// 	}
+// };
 
 class Connection
 {
@@ -34,7 +34,7 @@ public:
 		return this->response;
 	}
 
-	void clear();
+	void clear() {}
 };
 
 #endif // CONNECTION_HPP
