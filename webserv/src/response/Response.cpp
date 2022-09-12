@@ -1,7 +1,9 @@
 #include "Response.hpp"
+#include "../request/body.hpp"
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
+#include "../libft.hpp"
 
 #include <algorithm>
 #include <ctime>
@@ -17,18 +19,6 @@
 #define SERVER_NAME "webserv"
 #define SERVER_PROTOCOL "HTTP/1.1"
 #define CRLF "\r\n"
-
-namespace ft
-{
-template<class T>
-std::string toString(T value)
-{
-	std::stringstream ss;
-
-	ss << value;
-	return (ss.str());
-}
-} // namespace ft
 
 Response::Response()
 		: statusCode(200), body(), sentBytes(0), totalBytes(0), isReady(false), isClose(false)
@@ -58,10 +48,7 @@ bool Response::close() const
 
 void Response::clear()
 {
-	this->buffer.clear();
-	this->totalBytes = 0;
-	this->sentBytes = 0;
-
+	clearBuffer();
 	clearBody(this->body);
 
 	this->header.clear();
@@ -94,25 +81,21 @@ std::size_t Response::moveBufPosition(int nbyte)
 /**
  * @returns: (fd, events)
  */
-template<class Request, class ConfigInfo>
-std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
+std::pair<int, int> Response::process(Request &req, const ServerConfig &config, int clientFd)
 {
-	UriParser uriParser(req.uri);
+	UriParser uriParser(req.getStartline().uri);
 	std::string targetPath = uriParser.getPath();
-	typename ConfigInfo::locationType::iterator locIter;
+	std::map<std::string, LocationConfig>::const_iterator locIter;
 
-	locIter = findLocation(targetPath, config.location);
-	if (locIter == config.location.end())
+	locIter = findLocation(targetPath, config.tableOfLocations);
+	if (locIter == config.tableOfLocations.end())
 		throw(404);
 
 	const std::string &locPath = (*locIter).first;
-	typename ConfigInfo::locationType::mapped_type &location = (*locIter).second;
+	const LocationConfig &location = (*locIter).second;
 
-	if (location.allowMethod.find(req.method) == location.allowMethod.end())
+	if (location.allowedMethods.find(req.getStartline().method) == location.allowedMethods.end())
 		throw(405);
-
-	if (location.cgis.find(uriParser.getExtension()) != location.cgis.end())
-		throw(501); // cgi.
 
 	targetPath.replace(0, locPath.size(), location.root);
 
@@ -121,8 +104,8 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 		std::vector<std::string> files;
 
 		files = readDirectory(targetPath);
-		if (location.isAutoIndex)
-			return (setBodyToDefaultPage(generateFileListPage(req.uri, files)));
+		if (location.isAutoIndexOn)
+			return (setBodyToDefaultPage(generateFileListPage(req.getStartline().uri, files)));
 		else
 		{
 			std::string index;
@@ -134,6 +117,24 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 		}
 	}
 
+	if (location.tableOfCgiBins.find(uriParser.getExtension()) != location.tableOfCgiBins.end())
+	{
+		cgi.run(req, config, location, clientFd);
+		if (cgi.fail())
+			throw(503);
+		if (req.getBody().payload.size())
+		{
+			this->buffer = ::Body::vecToStr(req.getBody().payload);
+			return (std::make_pair(cgi.fd[1], EPOLLOUT));
+		}
+		else
+		{
+			::close(cgi.fd[1]);
+			this->body.fd = cgi.fd[0];
+			return (std::make_pair(cgi.fd[0], EPOLLIN));
+		}
+	}
+
 	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
 	if (this->body.fd == -1)
 		throw(404);
@@ -141,8 +142,7 @@ std::pair<int, int> Response::process(Request &req, ConfigInfo &config)
 	return (std::make_pair(this->body.fd, EPOLLIN));
 }
 
-template<class ConfigInfo>
-std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool close)
+std::pair<int, int> Response::process(int errorCode, const ServerConfig &config, bool close)
 {
 	std::string errorPage;
 
@@ -156,9 +156,9 @@ std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool cl
 		setHeader("Connection", "close");
 	}
 
-	if (config.errorPages.find(errorCode) != config.errorPages.end())
+	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
-		errorPage = config.errorPages[errorCode];
+		errorPage = config.tableOfErrorPages.at(errorCode);
 		this->body.fd = open(errorPage.c_str(), O_RDONLY | O_NONBLOCK);
 		if (this->body.fd != -1)
 		{
@@ -168,6 +168,115 @@ std::pair<int, int> Response::process(int errorCode, ConfigInfo &config, bool cl
 	}
 
 	return (setBodyToDefaultPage(generateDefaultErrorPage(errorCode)));
+}
+
+int Response::readBody()
+{
+	const std::size_t bufSize = 4096 * 16;
+	char buf[bufSize];
+	int n;
+
+	n = read(this->body.fd, buf, bufSize - 1);
+	if (n == -1)
+		return (-1);
+	else if (n == 0)
+	{
+		if (cgi)
+			cgi.parseCgiResponse(*this);
+		else if (this->body.size)
+			setHeader("Content-Length", ft::toString(this->body.size));
+
+		setBuffer();
+
+		return (0);
+	}
+	buf[n] = '\0';
+	this->body.buffer << buf;
+	this->body.size += n;
+	return (1);
+}
+
+int Response::writeBody()
+{
+	int n;
+
+	n = write(this->cgi.fd[1], getBuffer(), getBufSize());
+	if (n == -1)
+		return (-1);
+	else if (n == 0)
+	{
+		clearBuffer();
+		return (this->cgi.fd[0]);
+	}
+	moveBufPosition(n);
+	return (0);
+}
+
+std::map<std::string, LocationConfig>::const_iterator
+Response::findLocation(std::string path, const std::map<std::string, LocationConfig> &location)
+{
+	std::map<std::string, LocationConfig>::const_iterator found;
+	std::string loc;
+	std::string::size_type pos;
+
+	while (path.size() > 0)
+	{
+		pos = path.rfind("/");
+		if (pos == std::string::npos)
+			break;
+		loc = path.substr(0, pos + 1);
+		found = location.find(loc);
+		if (found != location.end())
+			return (found);
+		path = path.substr(0, pos);
+	}
+	return (location.end());
+}
+
+void Response::setStatusCode(int code)
+{
+	this->statusCode = code;
+}
+
+void Response::setHeader(std::string name, std::string value)
+{
+	this->header[name] = value;
+}
+
+void Response::setBuffer()
+{
+	std::stringstream tmp;
+
+	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << ReasonPhrase::get(this->statusCode)
+			<< CRLF;
+
+	tmp << "Server: " << SERVER_NAME << CRLF;
+	tmp << "Date: " << getCurrentTime() << CRLF;
+	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
+			 ++it)
+	{
+		tmp << (*it).first << ": " << (*it).second << CRLF;
+	}
+
+	if (cgi)
+	{
+		tmp << this->body.buffer.rdbuf();
+	}
+	else
+	{
+		// end of header
+		tmp << CRLF;
+
+		if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
+		{
+			if (this->body.buffer.rdbuf()->in_avail())
+				tmp << this->body.buffer.rdbuf();
+		}
+	}
+
+	this->buffer = tmp.str();
+	this->totalBytes = this->buffer.size();
+	this->isReady = true;
 }
 
 std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
@@ -232,104 +341,11 @@ Response::generateFileListPage(const std::string &path, const std::vector<std::s
 	return (html.str());
 }
 
-int Response::readBody()
+void Response::clearBuffer()
 {
-	const std::size_t bufSize = 4096 * 16;
-	char buf[bufSize];
-	int n;
-
-	n = read(this->body.fd, buf, bufSize - 1);
-	if (n == -1)
-		return (-1);
-	else if (n == 0)
-	{
-		setHeader("Content-Length", ft::toString(this->body.size));
-		setBuffer();
-		return (0);
-	}
-	buf[n] = '\0';
-	this->body.buffer << buf;
-	this->body.size += n;
-	return (1);
-}
-
-void Response::setStatusCode(int code)
-{
-	this->statusCode = code;
-}
-
-void Response::setHeader(std::string name, std::string value)
-{
-	this->header[name] = value;
-}
-
-void Response::setBuffer()
-{
-	std::stringstream tmp;
-
-	tmp << SERVER_PROTOCOL << " " << this->statusCode << " " << ReasonPhrase::get(this->statusCode)
-			<< CRLF;
-
-	tmp << "Server: " << SERVER_NAME << CRLF;
-	tmp << "Date: " << getCurrentTime() << CRLF;
-	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
-			 ++it)
-	{
-		tmp << (*it).first << ": " << (*it).second << CRLF;
-	}
-	tmp << CRLF;
-
-	if (this->statusCode / 100 != 1 && this->statusCode != 204 && this->statusCode != 304)
-	{
-		if (this->body.buffer.rdbuf()->in_avail())
-			tmp << this->body.buffer.rdbuf();
-	}
-
-	this->buffer = tmp.str();
-	this->totalBytes = this->buffer.size();
-	this->isReady = true;
-}
-
-std::string Response::timeInfoToString(std::tm *timeInfo, const std::string format) const
-{
-	const int bufSize = 32;
-	char buf[bufSize];
-
-	std::strftime(buf, bufSize, format.c_str(), timeInfo);
-	return (std::string(buf));
-}
-
-std::string Response::getCurrentTime() const
-{
-	std::string format;
-	std::time_t rawTime;
-	std::tm *timeInfo;
-
-	format = "%a, %d %b %G %T GMT";
-	std::time(&rawTime);
-	timeInfo = std::gmtime(&rawTime);
-	return (timeInfoToString(timeInfo, format));
-}
-
-template<class Locations>
-typename Locations::iterator Response::findLocation(std::string path, Locations &location)
-{
-	typename Locations::iterator found;
-	std::string loc;
-	std::string::size_type pos;
-
-	while (path.size() > 0)
-	{
-		pos = path.rfind("/");
-		if (pos == std::string::npos)
-			break;
-		loc = path.substr(0, pos + 1);
-		found = location.find(loc);
-		if (found != location.end())
-			return (found);
-		path = path.substr(0, pos);
-	}
-	return (location.end());
+	this->buffer.clear();
+	this->totalBytes = 0;
+	this->sentBytes = 0;
 }
 
 void Response::clearBody(Body &targetBody)
@@ -372,4 +388,25 @@ std::string Response::searchIndexFile(const std::vector<std::string> &files,
 			return (indexFiles[i]);
 	}
 	return ("");
+}
+
+std::string Response::timeInfoToString(std::tm *timeInfo, const std::string format) const
+{
+	const int bufSize = 32;
+	char buf[bufSize];
+
+	std::strftime(buf, bufSize, format.c_str(), timeInfo);
+	return (std::string(buf));
+}
+
+std::string Response::getCurrentTime() const
+{
+	std::string format;
+	std::time_t rawTime;
+	std::tm *timeInfo;
+
+	format = "%a, %d %b %G %T GMT";
+	std::time(&rawTime);
+	timeInfo = std::gmtime(&rawTime);
+	return (timeInfoToString(timeInfo, format));
 }

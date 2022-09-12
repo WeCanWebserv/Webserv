@@ -1,10 +1,11 @@
 #include "libft.hpp"
 
+#include <cstring>
 #include <sstream>
 #include <string>
 #include <vector>
 
-std::vector<std::string> ft_split(const std::string& str, char delim)
+std::vector<std::string> ft_split(const std::string &str, char delim)
 {
 	std::vector<std::string> tokens;
 	std::string token;
@@ -72,3 +73,23 @@ void ft_replace(std::stringstream &strStream, const std::string &s1, const std::
 	strStream.str(sedStream.str());
 	strStream.clear();
 }
+
+namespace ft
+{
+char *strdup(const std::string &str)
+{
+	char *res;
+
+	res = new char[str.size() + 1];
+	res[0] = '\0';
+	std::strcpy(res, str.c_str());
+	return (res);
+}
+
+int toUnderscore(int c)
+{
+	if (c == '-')
+		return ('_');
+	return (c);
+}
+} // namespace ft

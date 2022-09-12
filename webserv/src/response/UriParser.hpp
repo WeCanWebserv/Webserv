@@ -15,6 +15,8 @@ public:
 	std::string getPath() const;
 	std::string getQuery() const;
 	std::string getExtension() const;
+	std::string getFile() const;
+	std::string getPathInfo() const;
 	bool isDirectory() const;
 
 private:
