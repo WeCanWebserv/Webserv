@@ -1,9 +1,12 @@
 #include "Cgi.hpp"
+#include "../Logger.hpp"
 #include "../libft.hpp"
 #include "../request/request.hpp"
 #include "Response.hpp"
 #include "UriParser.hpp"
 
+#include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -40,10 +43,16 @@ bool Cgi::fail()
 
 	err = waitpid(this->pid, &status, WNOHANG);
 	if (err == -1)
+	{
+		Logger::error() << "Cgi waitpid: " << std::strerror(errno) << std::endl;
 		return (true);
+	}
 	else if (err == 0)
 		return (false); // cgi in progress
 
+	if (WIFEXITED(status))
+		if (WEXITSTATUS(status) != 0)
+			Logger::error() << "Cgi process: " << std::strerror(WEXITSTATUS(status)) << std::endl;
 	return (status != 0);
 }
 
@@ -91,8 +100,8 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		char *cmd[] = {ft::strdup(location.tableOfCgiBins.at(uriParser.getExtension())),
 									 ft::strdup(location.root + uriParser.getFile()), NULL};
 		char **env = generateMetaVariables(req, config, location, clientFd);
-		int err = execve(cmd[0], cmd, env);
-		exit(err);
+		execve(cmd[0], cmd, env);
+		exit(errno);
 	}
 	else
 	{
