@@ -90,6 +90,9 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	std::string targetPath = uriParser.getPath();
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
+	if (req.getStartline().httpVersion == "HTTP/1.0")
+		this->isClose = true;
+
 	locIter = findLocation(targetPath, config.tableOfLocations);
 	if (locIter == config.tableOfLocations.end())
 	{
@@ -179,12 +182,7 @@ std::pair<int, int> Response::process(int errorCode, const ServerConfig &config,
 	clear();
 
 	this->statusCode = errorCode;
-
-	if (close)
-	{
-		this->isClose = close;
-		setHeader("Connection", "close");
-	}
+	this->isClose |= close;
 
 	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
@@ -288,6 +286,12 @@ void Response::setBuffer()
 
 	tmp << "Server: " << SERVER_NAME << CRLF;
 	tmp << "Date: " << getCurrentTime() << CRLF;
+
+	if (isClose)
+		setHeader("Connection", "close");
+	else
+		setHeader("Connection", "keep-alive");
+
 	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
 			 ++it)
 	{
