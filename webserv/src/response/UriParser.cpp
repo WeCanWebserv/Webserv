@@ -1,4 +1,5 @@
 #include "UriParser.hpp"
+#include "../Logger.hpp"
 
 UriParser::UriParser(const std::string &uri) : uri(uri) {}
 
@@ -26,10 +27,10 @@ std::string UriParser::preprocess() const
 		path.insert(path.begin(), '/');
 
 	pos = path.find("..");
-	while (pos != std::string::npos)
+	if (pos != std::string::npos)
 	{
-		path.replace(pos, 2, "");
-		pos = path.find("..");
+		Logger::info() << "UriParser: " << "'..' in uri\n";
+		throw(400);
 	}
 
 	return (path);
@@ -65,12 +66,36 @@ std::string UriParser::getExtension() const
 	std::string path;
 	std::string::size_type pos;
 
-	path = getPath();
+	path = getFile();
 
 	pos = path.find('.');
 	if (pos == std::string::npos)
 		return ("");
 	return (path.substr(pos));
+}
+
+std::string UriParser::getFile() const
+{
+	std::string path;
+	std::string::size_type pos;
+
+	path = getPath();
+
+	pos = path.find('.');
+	if (pos == std::string::npos)
+		return (path);
+	pos = path.find('/', pos);
+	return (path.substr(0, pos));
+}
+
+std::string UriParser::getPathInfo() const
+{
+	std::string path;
+	std::string file;
+
+	path = getPath();
+	file = getFile();
+	return (path.substr(file.size()));
 }
 
 bool UriParser::isDirectory() const

@@ -18,6 +18,7 @@
 #include "ConfigParser.hpp"
 
 #include "Connection.hpp"
+#include "response/Response.hpp"
 
 #include <iostream>
 
@@ -57,7 +58,7 @@ ServerManager::ServerManager(const char *path)
 		int serverFd = iter->first;
 		if (listen(serverFd, this->gBackLog) == -1)
 			throw std::runtime_error("listen");
-		this->addEvent(serverFd);
+		this->addEvent(serverFd, EPOLLIN);
 	}
 }
 
@@ -86,71 +87,148 @@ void ServerManager::loop()
 		int nfds = epoll_wait(this->epollFd, events, MAX_EVENTS, -1);
 		if (nfds == -1)
 			throw std::runtime_error("epoll_wait");
+
 		for (int idx = 0; idx < nfds; idx++)
 		{
 			int eventFd = events[idx].data.fd;
-			server_container_type::iterator found = servers.find(eventFd);
-			if (found != servers.end())
-				this->connect(found->first);
-			else
-			{
-				connection_container_type::iterator found = connections.find(eventFd);
-				if (found == connections.end())
-					throw std::runtime_error("connection not found");
+			int occurredEvent = events[idx].events;
 
-				Connection &connection = found->second;
-				int occurredEvent = events[idx].events;
+			/**
+			 * 서버 소켓의 커넥션 요청 이벤트
+			 */
+			server_container_type::iterator foundServer = servers.find(eventFd);
+			if (foundServer != servers.end() && occurredEvent & EPOLLIN)
+			{
+				this->connect(eventFd);
+				continue;
+			}
+
+			/**
+			 * 클라이언트 소켓 이벤트
+			 * HTTP Request 혹은 HTTP Response
+			 */
+			connection_container_type::iterator foundConn = connections.find(eventFd);
+			if (foundConn != connections.end())
+			{
+				Connection &connection = foundConn->second;
+				Request &request = connection.getRequest();
+				Response &response = connection.getResponse();
+
 				if (occurredEvent & EPOLLERR || occurredEvent & EPOLLHUP)
 					this->disconnect(eventFd);
 				else if (occurredEvent & EPOLLIN)
 				{
-					if (this->receive(eventFd) == -1)
-						this->disconnect(eventFd);
-					else
-					{
-						Request &request = connection.getRequest();
-						if (!request.ready()) // read
-						{
-							// TODO: Request Buffer Handling @jungwkim
-							// ...
-						}
-						if (request.ready()) // open
-						{
-							Response &response = connection.getResponse();
-							// response.populate(request);
-							//
-						}
-						// if (response.ready())
-						// {
-						// 	// this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT);
-						// }
-					}
-				}
-				else
-				{
-					Response &response = connection.getResponse();
-					if (!response.ready())
-					{
-						// connecion
-						// TODO: Response FILE I/O, PIPE I/O Handling @seushin
+					std::pair<int, int> newEvent(-1, 0);
 
+					try
+					{
+						if (this->receive(eventFd) == -1)
+						{
+							this->disconnect(eventFd);
+							continue;
+						}
+						// TODO: Request Buffer Handling @jungwkim
+						// ...
+
+						if (request.ready())
+						{
+							newEvent = response.process(request, servers[eventFd], eventFd);
+						}
+					}
+					catch (int errorCode)
+					{
+						newEvent = response.process(errorCode, servers[eventFd]);
+					}
+					catch (...)
+					{
+						this->disconnect(eventFd);
 						continue;
 					}
-					if (this->send(eventFd) == -1)
-						this->disconnect(eventFd);
-					// else if (!response.done())
-					// continue;
-					else
+
+					/**
+					 * Response 생성을 위한 파일/cgi 이벤트 등록
+					 */
+					if (newEvent.first != -1)
 					{
-						// if (response.keepAlive())
-						// {
-						//    if (modifyEvent(eventFd, currentEvent, EPOLLIN) == -1)
-						//       throw std::runtime_error("modifyEvent");
-						//    connection.clear(); // use request.clear(), response.claer())
-						// }
-						// else
-						//  this->disconnect(eventFd);
-						//
+						if (this->addEvent(newEvent.first, newEvent.second) == -1)
+							this->disconnect(eventFd);
+					}
+					/**
+					 * Response가 버퍼를 직접 채운 경우(directory listing, default error page)
+					 * 추가 이벤트 없이 즉시 응답을 보낸다
+					 */
+					else if (response.ready())
+					{
+						if (this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT) == -1)
+							this->disconnect(eventFd);
+					}
+				}
+				else if (occurredEvent & EPOLLOUT)
+				{
+					if (this->send(eventFd, response) <= 0)
+					{
+						this->disconnect(eventFd);
+						continue;
+					}
+
+					if (response.done())
+					{
+						if (response.close())
+							this->disconnect(eventFd);
+						else
+						{
+							if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
+								connection.clear(); // use request.clear(), response.claer())
+							else
+								this->disconnect(eventFd);
+						}
+					}
+				}
+			}
+			else
+			{
+				/**
+				 * HTTP Response에 해당하는 파일/cgi 이벤트
+				 */
+				extra_fd_container_type::iterator foundFd = extraFds.find(eventFd);
+				connection_container_type::iterator foundConn = connections.find(foundFd->second);
+
+				if (foundFd == extraFds.end() || foundConn == connections.end())
+				{
+					this->deleteEvent(eventFd);
+					close(eventFd);
+					continue;
+				}
+
+				Connection &connection = foundConn->second;
+				Response &response = connection.getResponse();
+
+				if (occurredEvent & EPOLLIN)
+				{
+					int n;
+
+					n = response.readBody();
+					// FIX: read가 실패했을 때 연결 해제? 에러 응답?
+					if (n <= 0)
+					{
+						this->deleteEvent(eventFd);
+						close(eventFd);
+						this->modifyEvent(foundFd->second, currentEvent, EPOLLIN | EPOLLOUT);
+					}
+				}
+				else if (occurredEvent & EPOLLOUT)
+				{
+					int pipe = response.writeBody();
+
+					if (pipe > 0)
+					{
+						this->deleteEvent(eventFd);
+						close(eventFd);
+						this->addEvent(pipe, EPOLLIN);
+					}
+					else if (pipe == -1)
+					{
+						// write error
 					}
 				}
 			}
@@ -166,10 +244,10 @@ void ServerManager::loop()
 }
 
 // used in connect()
-int ServerManager::addEvent(int fd)
+int ServerManager::addEvent(int fd, int option)
 {
 	struct epoll_event event;
-	event.events = EPOLLIN;
+	event.events = option;
 	event.data.fd = fd;
 	return epoll_ctl(this->epollFd, EPOLL_CTL_ADD, fd, &event);
 }
@@ -197,12 +275,12 @@ void ServerManager::connect(int serverFd)
 	this->fdInUse.insert(fd);
 	std::cout << "id [" << fd << "]: " << "connected\n";
 	if (fd == -1)
-		throw std::runtime_error("accept");
+		return;
 
 	Connection newConnection(serverFd);
 	connections.insert(std::make_pair(fd, newConnection));
-	if (this->addEvent(fd) == -1)
-		throw std::runtime_error("addEvent");
+	if (this->addEvent(fd, EPOLLIN) == -1)
+		this->disconnect(fd);
 }
 
 void ServerManager::disconnect(int fd)
@@ -229,16 +307,16 @@ int ServerManager::receive(int fd)
 	return 0;
 }
 
-int ServerManager::send(int fd)
+int ServerManager::send(int fd, Response &response)
 {
-	Response &response = connections[fd].getResponse();
-	char *buffer = this->buffer; // TODO: response.?()
-	int nbytes = ::send(fd, buffer, BUFFER_SIZE, 0);
-	if (nbytes == -1)
-		return -1;
-	else
+	const char *buffer = response.getBuffer();
+	std::size_t bufSize = response.getBufSize();
+	int nbytes;
+
+	nbytes = ::send(fd, buffer, bufSize, 0);
+	if (nbytes > 0)
 	{
-		// ...
-		return 0;
+		response.moveBufPosition(nbytes);
 	}
+	return nbytes;
 }

@@ -1,10 +1,15 @@
 #ifndef RESPONSE_HPP
 #define RESPONSE_HPP
 
+#include "../Config.hpp"
+#include "../request/request.hpp"
+#include "Cgi.hpp"
+
 #include <ctime>
 #include <map>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 class Response
@@ -30,50 +35,52 @@ private:
 	std::size_t totalBytes;
 	bool isReady;
 	bool isClose;
+	Cgi cgi;
 
 public:
 	Response();
+	Response(const Response &other);
 	~Response();
 
 	bool ready() const;
 	bool done() const;
+	bool close() const;
 	void clear();
 
 	const char *getBuffer() const;
 	std::size_t getBufSize() const;
 	std::size_t moveBufPosition(int nbyte);
 
-	template<class Request, class ConfigInfo>
-	void process(Request &req, ConfigInfo &config);
-	template<class ConfigInfo>
-	void process(int errorCode, ConfigInfo &config, bool close = false);
+	std::pair<int, int> process(Request &req, const ServerConfig &config, int clientFd);
+	std::pair<int, int> process(int errorCode, const ServerConfig &config, bool close = false);
 
 	int readBody();
+	int writeBody();
 
 private:
-	Response(const Response &other);
-	Response &operator=(const Response &rhs);
-
-	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
-	std::string getCurrentTime() const;
-
-	template<class Locations>
-	typename Locations::iterator findLocation(std::string path, Locations &location);
+	std::map<std::string, LocationConfig>::const_iterator
+	findLocation(std::string path, const std::map<std::string, LocationConfig> &location);
 
 	void setStatusCode(int code);
 	void setHeader(std::string name, std::string value);
 	void setBuffer();
 
-	void setBodyToDefaultPage(const std::string &html);
+	std::pair<int, int> setBodyToDefaultPage(const std::string &html);
 	std::string generateDefaultErrorPage(int code) const;
-	std::string generateFileListPage(
-			const std::string &path, const std::vector<std::string> &files) const;
+	std::string
+	generateFileListPage(const std::string &path, const std::vector<std::string> &files) const;
 
+	void clearBuffer();
 	void clearBody(Body &body);
 
 	std::vector<std::string> readDirectory(const std::string &path);
-	std::string searchIndexFile(
-			const std::vector<std::string> &files, const std::vector<std::string> &indexFiles);
+	std::string searchIndexFile(const std::vector<std::string> &files,
+															const std::vector<std::string> &indexFiles);
+
+	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
+	std::string getCurrentTime() const;
+
+	friend Cgi;
 };
 
 #endif // !RESPONSE_HPP
