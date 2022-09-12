@@ -1,6 +1,8 @@
-#include "../request.hpp"
+#include "../request_manager.hpp"
+
 #include "../../Logger.hpp"
 #include <iostream>
+#include <malloc/_malloc.h>
 #include <string>
 #include <unistd.h>
 
@@ -18,7 +20,7 @@ Host: www.webser.com"
 
 void test(const char *buffer, ssize_t octetSize, ssize_t bufsize)
 {
-	Request req;
+	RequestManager req;
 	char *ptr;
 
 	ptr = (char *)malloc(bufsize * sizeof(char));
@@ -27,8 +29,9 @@ void test(const char *buffer, ssize_t octetSize, ssize_t bufsize)
 		if (i + bufsize >= octetSize)
 			bufsize = strlen(buffer + i);
 		memcpy(ptr, &buffer[i], bufsize);
-		if (req.fillBuffer(ptr, bufsize) < 0)
+		if (req.fillBuffer(ptr, bufsize) >= 400)
 		{
+			exit(1);
 			std::cout << "error occured\n";
 			return;
 		}
@@ -39,11 +42,8 @@ void test(const char *buffer, ssize_t octetSize, ssize_t bufsize)
 
 int main(void)
 {
-	// test("CONNECT www.example.com:80 HTTP/1.1\nHost: www.example.com \nContent-Type: "
-	// 		 "plain/text\nContent-Length: 234\nContent-Length: 234\n\n",
-	// 		 16);
-	Logger::init(Logger::LOGLEVEL_DEBUG, "/dev/stderr");
-	test("POST / HTTP/1.1\n\
+	Logger::init(Logger::LOGLEVEL_DEBUG, "/dev/stdout");
+	const char *p1 = "POST / HTTP/1.1\n\
 Host: localhost:8000\n\
 User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:29.0) Gecko/20100101 Firefox/29.0\n\
 Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\n\
@@ -52,7 +52,7 @@ Accept-Encoding: gzip, deflate\n\
 Cookie: __atuvc=34%7C7; permanent=0; _gitlab_session=226ad8a0be43681acf38c2fab9497240; __profilin=p%3Dt; request_method=GET\n\
 Connection: keep-alive\n\
 Content-Type: multipart/form-data; boundary=-----------------------------9051914041544843365972754266\n\
-Content-Length: 555\n\
+Content-Length: 554\n\
 \n\
 -----------------------------9051914041544843365972754266\r\n\
 Content-Disposition: form-data; name=\"text\"\r\n\
@@ -62,7 +62,7 @@ text default\r\n\
 Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n\
 Content-Type: text/plain\r\n\
 \r\n\
-Content \0of a.txt.\r\n\
+Content of a.txt.\r\n\
 \r\n\
 -----------------------------9051914041544843365972754266\r\n\
 Content-Disposition: form-data; name=\"file2\"; filename=\"a.html\"\r\n\
@@ -70,22 +70,9 @@ Content-Type: text/html\r\n\
 \r\n\
 <!DOCTYPE html><title>Content of a.html.</title>\r\n\
 \r\n\
------------------------------9051914041544843365972754266--",
-			 1084, 1);
-// 			 std::cout << ::strlen("CONNECT / HTTP/1.1\r\n\
-// Host: localhost\r\n\
-// Content-Type: text/plain \r\n\
-// Transfer-Encoding: chunked\r\n\
-// \r\n\
-// 7\r\n\
-// Mozilla\r\n\
-// 9\r\n\
-// Developer\r\n\
-// 7\r\n\
-// Network\r\n\
-// 0\r\n\
-// \r\n") << std::endl;
-	test("CONNECT / HTTP/1.1\r\n\
+-----------------------------9051914041544843365972754266--";
+
+	const char *p2 = "CONNECT / HTTP/1.1\r\n\
 Host: localhost\r\n\
 Content-Type: text/plain \r\n\
 Transfer-Encoding: gzip, chunked\r\n\
@@ -97,8 +84,18 @@ Developer\r\n\
 7\r\n\
 Network\r\n\
 0\r\n\
-\r\n",
-			 137, 6);
-	
+\r\n";
+
+	std::string str1(p1, p1 + strlen(p1));
+	std::string str2(p2, p2 + strlen(p2));
+
+	std::string str3(str1 + str2);
+	std::string str4(str2 + str1);
+
+	test(str1.c_str(), str1.length(), 1);
+	test(str2.c_str(), str2.length(), 1);
+	test(str3.c_str(), str3.length(), 1);
+	test(str4.c_str(), str4.length(), 1);
+
 	system("leaks a.out");
 }
