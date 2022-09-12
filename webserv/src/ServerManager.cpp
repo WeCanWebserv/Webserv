@@ -42,13 +42,15 @@ ServerManager::ServerManager(const char *path)
 		if (socketFd == -1)
 			throw std::runtime_error("socket");
 		else
+		{
 			this->fdInUse.insert(socketFd);
+			int optVal = 1;
+			setsockopt(socketFd, SOL_SOCKET, SO_REUSEPORT, (void *)&optVal, (socklen_t)sizeof(optVal));
+		}
 
 		const ServerConfig &serverConfig = serverConfigs[idx];
 		sockAddr.sin_addr.s_addr = inet_addr(serverConfig.listennedHost.c_str());
 		sockAddr.sin_port = htons(std::atoi(serverConfig.listennedPort.c_str()));
-
-		// std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort) << std::endl;
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
