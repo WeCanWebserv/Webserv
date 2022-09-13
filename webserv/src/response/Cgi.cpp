@@ -44,15 +44,13 @@ bool Cgi::fail()
 	err = waitpid(this->pid, &status, WNOHANG);
 	if (err == -1)
 	{
-		Logger::error() << "Cgi waitpid: " << std::strerror(errno) << std::endl;
+		Logger::error() << "Cgi: waitpid: " << std::strerror(errno) << std::endl;
 		return (true);
 	}
 	else if (err == 0)
 		return (false); // cgi in progress
 
-	if (WIFEXITED(status))
-		if (WEXITSTATUS(status) != 0)
-			Logger::error() << "Cgi process: " << std::strerror(WEXITSTATUS(status)) << std::endl;
+	Logger::info() << "Cgi: process exit code: " << std::strerror(WEXITSTATUS(status)) << std::endl;
 	return (status != 0);
 }
 
@@ -112,6 +110,7 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 	}
 	else
 	{
+		Logger::info() << "Cgi: running cgi process... pid: " << this->pid << std::endl;
 		close(reqPipe[0]);
 		close(resPipe[1]);
 
