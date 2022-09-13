@@ -44,13 +44,15 @@ bool Cgi::fail()
 	err = waitpid(this->pid, &status, WNOHANG);
 	if (err == -1)
 	{
-		Logger::error() << "Cgi: waitpid: " << std::strerror(errno) << std::endl;
+		Logger::error() << "Cgi: process " << this->pid << " waitpid: " << std::strerror(errno)
+										<< std::endl;
 		return (true);
 	}
 	else if (err == 0)
 		return (false); // cgi in progress
 
-	Logger::info() << "Cgi: process exit code: " << std::strerror(WEXITSTATUS(status)) << std::endl;
+	Logger::info() << "Cgi: process " << this->pid << " exit code: " << WEXITSTATUS(status)
+								 << " with signal " << WTERMSIG(status) << std::endl;
 	return (status != 0);
 }
 
