@@ -127,7 +127,8 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			tmp.append(octets + octetOffset, octetSize - octetOffset);
 			this->buf << tmp;
 
-			Logger::debug(LOG_LINE) << "[ " << this->requestQueue.size() << "th ] request message is parsing...\n";
+			Logger::debug(LOG_LINE) << "[ " << this->requestQueue.size()
+															<< "th ] request message is parsing...\n";
 			Request &request = this->getLatestRequest();
 			std::string line;
 			while (this->parseStage != RequestManager::STAGE_BODY && std::getline(this->buf, line))
@@ -178,8 +179,8 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			{
 				RequestParser::postBodyParser(request.getBody(), request.getHeader());
 				Logger::debug(LOG_LINE) << this->requestQueue.size()
-																<< "th request message parsing is just completed\n";
-				octetOffset = octetSize - remainedCount;
+																	 << "th request message parsing is just completed\n";
+																	 octetOffset = octetSize - remainedCount;
 				this->prepareNextRequest();
 			}
 			if (remainedCount <= 0) // 남았을 경우에만 continue, 아니면 break한다.

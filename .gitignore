@@ -39,3 +39,5 @@
 
 ## private folder
 private/
+**/doc/
+*.log

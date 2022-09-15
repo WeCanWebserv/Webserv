@@ -3,7 +3,7 @@
 
 #include "field_value.hpp"
 #include "header.hpp"
-#include "sstream"
+#include <sstream>
 #include <map>
 #include <string>
 #include <vector>
@@ -12,7 +12,7 @@
 
 class RequestParser;
 
-struct Body
+class Body
 {
 public:
 	std::vector<char> payload;
