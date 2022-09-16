@@ -173,6 +173,9 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	std::vector<std::string> tmp;
 	std::string tmpstring;
 
+	std::stringstream ss;
+	ss << headerbuf.size();
+	Logger::debug(LOG_LINE) << "header line [" << ss.str() << "] : " << line << "\n";
 	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
 	{
 		Logger::debug(LOG_LINE) << "Header secion size is too long\n";
@@ -237,6 +240,7 @@ void RequestParser::headerParser(Header &header,
 			 it != headerbuf.end(); it++)
 	{
 		RequestParser::headerValueParser(fieldvalueVec, it->second);
+		Logger::debug(LOG_LINE) << "fieldname : " << it->first << "\n";
 		header.insertField(std::make_pair(it->first, fieldvalueVec));
 		fieldvalueVec.clear();
 	}
@@ -341,6 +345,8 @@ bool RequestParser::checkHeaderFieldContain(std::map<std::string, std::string> &
  */
 ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Header &header)
 {
+	Logger::debug(LOG_LINE) << "Body Octet: " << std::string(bodyOctets.begin(), bodyOctets.end())
+													<< std::endl;
 	if (header.hasField(TRANSFER_ENCODING))
 	{
 		if (header.hasFieldValue(TRANSFER_ENCODING, "chunked"))
@@ -407,7 +413,7 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 	{
 		Logger::debug(LOG_LINE)
 				<< "Multipart format body does not have header-body pair || section delimiter is invalid\n";
-		throw(400);
+				throw(400);
 	}
 	if (sectionSet.size() == 1)
 	{
@@ -536,7 +542,7 @@ ssize_t RequestParser::parseChunkedContentLine(Body &body,
 	ssize_t i;
 	ssize_t savedlength = lineBuffer.size();
 
-	for (i = 0; i < bodyOctets.size(); i++)
+	for (i = 0; i < static_cast<ssize_t>(bodyOctets.size()); i++)
 	{
 		if (i + savedlength == lineLength + 2) // \r\n을 받기 위해
 		{
@@ -639,12 +645,12 @@ RequestParser::splitStrStrict(const std::string &str, const char *delimiter, siz
 // TODO: 입력의 변경을 없애자(입력을 변경하는 대신 새로운 변수를 만들어 반환하자)
 std::string RequestParser::trimStr(const std::string &target, const std::string &charset)
 {
-	size_t idx;
+	ssize_t idx;
 	std::string::iterator it;
 	std::string copyTarget = target;
 
 	idx = 0;
-	while (idx < copyTarget.size())
+	while (idx < static_cast<ssize_t>(copyTarget.size()))
 	{
 		it = copyTarget.begin();
 		if (charset.find(copyTarget[idx]) == std::string::npos)

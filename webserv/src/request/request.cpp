@@ -1,5 +1,5 @@
 #include "request.hpp"
-#include "../Logger.hpp"
+#include "Logger.hpp"
 
 Request::Request() {}
 

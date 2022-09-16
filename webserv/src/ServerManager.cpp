@@ -1,14 +1,14 @@
 #include "ServerManager.hpp"
 
+#include <fcntl.h>
 #include <netdb.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <fcntl.h>
 
 #include <exception>
-#include <iostream>
+// #include <iostream>
 
 #include <map>
 #include <utility>
@@ -20,14 +20,14 @@
 #include "Connection.hpp"
 #include "response/Response.hpp"
 
-#include <iostream>
+// #include <iostream>
 
 ServerManager::ServerManager(const char *path)
 {
 	this->epollFd = epoll_create(this->gMaxEvents);
 	if (this->epollFd == -1)
 		throw std::runtime_error("epoll_create");
-	
+
 	const ConfigParser parser(path);
 	const Config &config = parser.getConfig();
 	const std::vector<ServerConfig> &serverConfigs = config.serverConfigs;
@@ -45,7 +45,8 @@ ServerManager::ServerManager(const char *path)
 		ServerConfig serverConfig = serverConfigs[idx];
 		sockAddr.sin_addr.s_addr = htonl(serverConfig.listennedHost);
 		sockAddr.sin_port = htons(serverConfig.listennedPort);
-		std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort) << std::endl;
+		std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort)
+							<< std::endl;
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
@@ -78,7 +79,7 @@ void ServerManager::clear()
 }
 
 void ServerManager::loop()
-{		
+{
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
@@ -111,7 +112,7 @@ void ServerManager::loop()
 			if (foundConn != connections.end())
 			{
 				Connection &connection = foundConn->second;
-				Request &request = connection.getRequest();
+				RequestManager &requestManager = connection.getRequestManager();
 				Response &response = connection.getResponse();
 
 				if (occurredEvent & EPOLLERR || occurredEvent & EPOLLHUP)
@@ -127,11 +128,9 @@ void ServerManager::loop()
 							this->disconnect(eventFd);
 							continue;
 						}
-						// TODO: Request Buffer Handling @jungwkim
-						// ...
-
-						if (request.ready())
+						if (requestManager.isReady())
 						{
+							Request &request = requestManager.pop();
 							newEvent = response.process(request, servers[eventFd], eventFd);
 						}
 					}
@@ -273,12 +272,16 @@ void ServerManager::connect(int serverFd)
 	int fd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	this->fdInUse.insert(fd);
-	std::cout << "id [" << fd << "]: " << "connected\n";
+	std::cout << "id [" << fd << "]: "
+						<< "connected\n";
 	if (fd == -1)
 		return;
 
-	Connection newConnection(serverFd);
-	connections.insert(std::make_pair(fd, newConnection));
+	if (connections.find(fd) != connections.end())
+	{
+		connections[fd];
+		// connections[fd].setServerFd(serverFd);
+	}
 	if (this->addEvent(fd, EPOLLIN) == -1)
 		this->disconnect(fd);
 }
@@ -288,7 +291,8 @@ void ServerManager::disconnect(int fd)
 	this->deleteEvent(fd);
 	connections.erase(fd);
 	close(fd);
-	std::cout << "id [" << fd << "]: " << "disconnected\n";
+	std::cout << "id [" << fd << "]: "
+						<< "disconnected\n";
 }
 
 int ServerManager::receive(int fd)
@@ -299,10 +303,8 @@ int ServerManager::receive(int fd)
 		return -1;
 	else
 	{
-		std::cout << buffer << std::endl;
-		// example:
-		// Request& request = connections[fd].getRequest();
-		// request.append(buffer);
+		RequestManager &requestManager = connections[fd].getRequestManager();
+		requestManager.fillBuffer(buffer, nbytes);
 	}
 	return 0;
 }

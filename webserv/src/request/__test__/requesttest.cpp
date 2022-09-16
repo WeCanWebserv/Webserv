@@ -1,10 +1,11 @@
 #include "../request_manager.hpp"
 
-#include "../../Logger.hpp"
+// #include "../../Logger.hpp"
 #include <iostream>
-#include <malloc/_malloc.h>
+#include <cstring>
 #include <string>
 #include <unistd.h>
+#include <cstring>
 
 #define EXAMPLE1                                                                                   \
 	"GET / HTTP/1.1\n\
@@ -24,7 +25,7 @@ void test(const char *buffer, ssize_t octetSize, ssize_t bufsize)
 	char *ptr;
 
 	ptr = (char *)malloc(bufsize * sizeof(char));
-	for (size_t i = 0; i < octetSize; i += bufsize)
+	for (ssize_t i = 0; i < octetSize; i += bufsize)
 	{
 		if (i + bufsize >= octetSize)
 			bufsize = strlen(buffer + i);
@@ -92,10 +93,10 @@ Network\r\n\
 	std::string str3(str1 + str2);
 	std::string str4(str2 + str1);
 
-	test(str1.c_str(), str1.length(), 1);
-	test(str2.c_str(), str2.length(), 1);
-	test(str3.c_str(), str3.length(), 1);
-	test(str4.c_str(), str4.length(), 1);
+	test(str1.c_str(), str1.length(), 100);
+	test(str2.c_str(), str2.length(), 100);
+	test(str3.c_str(), str3.length(), 100);
+	test(str4.c_str(), str4.length(), 100);
 
 	system("leaks a.out");
 }

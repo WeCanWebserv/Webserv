@@ -8,8 +8,9 @@
 #include <string>
 #include <vector>
 
-struct RequestParser
+class RequestParser
 {
+public:
 	static void startlineParser(Startline &startline, const std::string &str);
 	static void headerParser(Header &header,
 													 std::map<std::string, std::string> &headerbuf,
