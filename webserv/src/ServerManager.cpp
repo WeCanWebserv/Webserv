@@ -144,23 +144,7 @@ void ServerManager::loop()
 						continue;
 					}
 
-					/**
-					 * Response 생성을 위한 파일/cgi 이벤트 등록
-					 */
-					if (newEvent.first != -1)
-					{
-						if (this->addEvent(newEvent.first, newEvent.second) == -1)
-							this->disconnect(eventFd);
-					}
-					/**
-					 * Response가 버퍼를 직접 채운 경우(directory listing, default error page)
-					 * 추가 이벤트 없이 즉시 응답을 보낸다
-					 */
-					else if (response.ready())
-					{
-						if (this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT) == -1)
-							this->disconnect(eventFd);
-					}
+					registerResposneEvent(eventFd, response, newEvent);
 				}
 				else if (occurredEvent & EPOLLOUT)
 				{
@@ -176,7 +160,23 @@ void ServerManager::loop()
 							this->disconnect(eventFd);
 						else
 						{
-							if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
+							if (requestManager.isReady())
+							{
+								std::pair<int, int> newEvent(-1, 0);
+
+								try
+								{
+									Request &request = requestManager.pop();
+									newEvent = response.process(request, servers[eventFd], eventFd);
+								}
+								catch (int errorCode)
+								{
+									newEvent = response.process(errorCode, servers[eventFd]);
+								}
+
+								registerResposneEvent(eventFd, response, newEvent);
+							}
+							else if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
 								connection.clear(); // use request.clear(), response.claer())
 							else
 								this->disconnect(eventFd);
@@ -321,4 +321,20 @@ int ServerManager::send(int fd, Response &response)
 		response.moveBufPosition(nbytes);
 	}
 	return nbytes;
+}
+
+void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<int, int> newEvent)
+{
+	epoll_event dummyEvent;
+
+	if (newEvent.first != -1)
+	{
+		if (this->addEvent(newEvent.first, newEvent.second) == -1)
+			this->disconnect(eventFd);
+	}
+	else if (res.ready())
+	{
+		if (this->modifyEvent(eventFd, dummyEvent, EPOLLIN | EPOLLOUT) == -1)
+			this->disconnect(eventFd);
+	}
 }
