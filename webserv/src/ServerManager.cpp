@@ -176,7 +176,32 @@ void ServerManager::loop()
 							this->disconnect(eventFd);
 						else
 						{
-							if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
+							if (requestManager.isReady())
+							{
+								std::pair<int, int> newEvent(-1, 0);
+
+								try
+								{
+									Request &request = requestManager.pop();
+									newEvent = response.process(request, servers[eventFd], eventFd);
+								}
+								catch (int errorCode)
+								{
+									newEvent = response.process(errorCode, servers[eventFd]);
+								}
+
+								if (newEvent.first != -1)
+								{
+									if (this->addEvent(newEvent.first, newEvent.second) == -1)
+										this->disconnect(eventFd);
+								}
+								else if (response.ready())
+								{
+									if (this->modifyEvent(eventFd, currentEvent, EPOLLIN | EPOLLOUT) == -1)
+										this->disconnect(eventFd);
+								}
+							}
+							else if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
 								connection.clear(); // use request.clear(), response.claer())
 							else
 								this->disconnect(eventFd);
