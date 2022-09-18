@@ -1,9 +1,12 @@
 #include "Cgi.hpp"
+#include "../Logger.hpp"
 #include "../libft.hpp"
 #include "../request/request.hpp"
 #include "Response.hpp"
 #include "UriParser.hpp"
 
+#include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -40,11 +43,23 @@ bool Cgi::fail()
 
 	err = waitpid(this->pid, &status, WNOHANG);
 	if (err == -1)
+	{
+		Logger::error() << "Cgi: process " << this->pid << " waitpid: " << std::strerror(errno)
+										<< std::endl;
 		return (true);
+	}
 	else if (err == 0)
 		return (false); // cgi in progress
 
+	Logger::info() << "Cgi: process " << this->pid << " exit code: " << WEXITSTATUS(status)
+								 << " with signal " << WTERMSIG(status) << std::endl;
 	return (status != 0);
+}
+
+void Cgi::clear()
+{
+	this->pid = -1;
+	this->isCgi = false;
 }
 
 int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd)
@@ -60,6 +75,7 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 	 *          resPipe
 	 *      <----------------
 	 */
+	this->isCgi = true;
 	if (pipe(reqPipe) == -1)
 		return (1);
 	if (pipe(resPipe) == -1)
@@ -91,11 +107,12 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		char *cmd[] = {ft::strdup(location.tableOfCgiBins.at(uriParser.getExtension())),
 									 ft::strdup(location.root + uriParser.getFile()), NULL};
 		char **env = generateMetaVariables(req, config, location, clientFd);
-		int err = execve(cmd[0], cmd, env);
-		exit(err);
+		execve(cmd[0], cmd, env);
+		exit(errno);
 	}
 	else
 	{
+		Logger::info() << "Cgi: running cgi process... pid: " << this->pid << std::endl;
 		close(reqPipe[0]);
 		close(resPipe[1]);
 
