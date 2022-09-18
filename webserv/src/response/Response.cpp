@@ -1,6 +1,6 @@
 #include "Response.hpp"
 #include "../libft.hpp"
-#include "../request/body.hpp"
+#include "../request/request.hpp"
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
