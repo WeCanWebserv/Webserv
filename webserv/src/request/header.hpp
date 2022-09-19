@@ -5,9 +5,9 @@
 #include <algorithm>
 #include <map>
 // #include <sstream>
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include "../Logger.hpp"
 
@@ -21,7 +21,7 @@
 template<typename T>
 struct True : std::binary_function<T, T, T>
 {
-	bool operator()(const T&, const T&) const
+	bool operator()(const T &, const T &) const
 	{
 		return true;
 	}
@@ -112,6 +112,17 @@ public:
 		// 		}
 		// 		std::cout << "\n";
 		// #endif
+	}
+
+	Header(const Header &other)
+	{
+		*this = other;
+	}
+
+	Header &operator=(const Header &other)
+	{
+		this->headerMap = other.headerMap;
+		return (*this);
 	}
 
 	const HeaderMap &getFields(void) const
