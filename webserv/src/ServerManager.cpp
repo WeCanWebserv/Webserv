@@ -288,16 +288,16 @@ void ServerManager::connect(int serverFd)
 	struct sockaddr_in clientAddr;
 	int clientLength = sizeof(clientAddr);
 	int fd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
+	if (fd == -1)
+	{
+		Logger::error() << "accept: " << serverFd << " " << std::strerror(errno) << std::endl;
+		return;
+	}
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	this->fdInUse.insert(fd);
-	if (fd == -1)
-		return;
 
-	if (connections.find(fd) != connections.end())
-	{
-		connections[fd];
-		// connections[fd].setServerFd(serverFd);
-	}
+	connections[fd].clear();
+	connections[fd].setServerFd(serverFd);
 	Logger::info() << "ServerManager: " << fd << " connected" << std::endl;
 	if (this->addEvent(fd, EPOLLIN) == -1)
 	{
@@ -309,7 +309,6 @@ void ServerManager::connect(int serverFd)
 void ServerManager::disconnect(int fd)
 {
 	this->deleteEvent(fd);
-	connections.erase(fd);
 	close(fd);
 	Logger::info() << "ServerManager: " << fd << " disconnected" << std::endl;
 }
