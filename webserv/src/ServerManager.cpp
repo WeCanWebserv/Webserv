@@ -18,6 +18,7 @@
 #include "ConfigParser.hpp"
 
 #include "Connection.hpp"
+#include "Logger.hpp"
 #include "response/Response.hpp"
 
 // #include <iostream>
@@ -189,12 +190,14 @@ void ServerManager::loop()
 				/**
 				 * HTTP Response에 해당하는 파일/cgi 이벤트
 				 */
-				extra_fd_container_type::iterator foundFd = extraFds.find(eventFd);
-				connection_container_type::iterator foundConn = connections.find(foundFd->second);
+				extra_fd_container_type::iterator foundFd = this->extraFds.find(eventFd);
+				connection_container_type::iterator foundConn = this->connections.find(foundFd->second);
 
-				if (foundFd == extraFds.end() || foundConn == connections.end())
+				if (foundFd == this->extraFds.end() || foundConn == this->connections.end())
 				{
+					Logger::error() << "undefined extra fd" << std::endl;
 					this->deleteEvent(eventFd);
+					this->extraFds.erase(eventFd);
 					close(eventFd);
 					continue;
 				}
@@ -207,12 +210,15 @@ void ServerManager::loop()
 					int n;
 
 					n = response.readBody();
-					// FIX: read가 실패했을 때 연결 해제? 에러 응답?
 					if (n <= 0)
 					{
 						this->deleteEvent(eventFd);
+						this->extraFds.erase(eventFd);
 						close(eventFd);
-						this->modifyEvent(foundFd->second, currentEvent, EPOLLIN | EPOLLOUT);
+						if (n == -1)
+							this->disconnect(foundFd->second);
+						else
+							this->modifyEvent(foundFd->second, currentEvent, EPOLLIN | EPOLLOUT);
 					}
 				}
 				else if (occurredEvent & EPOLLOUT)
@@ -222,12 +228,12 @@ void ServerManager::loop()
 					if (pipe > 0)
 					{
 						this->deleteEvent(eventFd);
+						this->extraFds.erase(eventFd);
 						close(eventFd);
-						this->addEvent(pipe, EPOLLIN);
-					}
-					else if (pipe == -1)
-					{
-						// write error
+						if (pipe == -1)
+							this->disconnect(foundFd->second);
+						else
+							this->addEvent(pipe, EPOLLIN);
 					}
 				}
 			}
