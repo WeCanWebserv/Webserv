@@ -12,24 +12,13 @@ private:
 	Response response;
 
 public:
-	Connection() {}
-	Connection(int serverFd) : serverFd(serverFd) {}
+	Connection();
+	Connection(int serverFd);
 
-	void setServerFd(int serverFd)
-	{
-		this->serverFd = serverFd;
-	}
-
-	RequestManager &getRequestManager()
-	{
-		return this->requestManager;
-	}
-	Response &getResponse()
-	{
-		return this->response;
-	}
-
+	void setServerFd(int serverFd);
 	int getServerFd() const;
+	RequestManager &getRequestManager();
+	Response &getResponse();
 
 	void clear();
 };
