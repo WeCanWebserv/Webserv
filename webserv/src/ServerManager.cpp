@@ -296,8 +296,11 @@ void ServerManager::connect(int serverFd)
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	this->fdInUse.insert(fd);
 
-	connections[fd].clear();
-	connections[fd].setServerFd(serverFd);
+	if (this->connections.find(fd) != this->connections.end())
+	{
+		this->connections[fd].clear();
+	}
+	this->connections[fd].setServerFd(serverFd);
 	Logger::info() << "ServerManager: " << fd << " connected" << std::endl;
 	if (this->addEvent(fd, EPOLLIN) == -1)
 	{
@@ -309,6 +312,7 @@ void ServerManager::connect(int serverFd)
 void ServerManager::disconnect(int fd)
 {
 	this->deleteEvent(fd);
+	this->connections.erase(fd);
 	close(fd);
 	Logger::info() << "ServerManager: " << fd << " disconnected" << std::endl;
 }
