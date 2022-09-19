@@ -7,9 +7,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cerrno>
+#include <cstring>
 #include <exception>
-// #include <iostream>
-
 #include <map>
 #include <utility>
 #include <vector>
@@ -20,8 +20,6 @@
 #include "Connection.hpp"
 #include "Logger.hpp"
 #include "response/Response.hpp"
-
-// #include <iostream>
 
 ServerManager::ServerManager(const char *path)
 {
@@ -46,8 +44,8 @@ ServerManager::ServerManager(const char *path)
 		ServerConfig serverConfig = serverConfigs[idx];
 		sockAddr.sin_addr.s_addr = htonl(serverConfig.listennedHost);
 		sockAddr.sin_port = htons(serverConfig.listennedPort);
-		std::cout << htonl(serverConfig.listennedHost) << " " << htons(serverConfig.listennedPort)
-							<< std::endl;
+		Logger::debug(LOG_LINE) << "host: " << htonl(serverConfig.listennedHost)
+														<< ", port: " << htons(serverConfig.listennedPort) << std::endl;
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
@@ -98,8 +96,8 @@ void ServerManager::loop()
 			/**
 			 * 서버 소켓의 커넥션 요청 이벤트
 			 */
-			server_container_type::iterator foundServer = servers.find(eventFd);
-			if (foundServer != servers.end() && occurredEvent & EPOLLIN)
+			server_container_type::iterator foundServer = this->servers.find(eventFd);
+			if (foundServer != this->servers.end() && occurredEvent & EPOLLIN)
 			{
 				this->connect(eventFd);
 				continue;
@@ -109,15 +107,18 @@ void ServerManager::loop()
 			 * 클라이언트 소켓 이벤트
 			 * HTTP Request 혹은 HTTP Response
 			 */
-			connection_container_type::iterator foundConn = connections.find(eventFd);
-			if (foundConn != connections.end())
+			connection_container_type::iterator foundConn = this->connections.find(eventFd);
+			if (foundConn != this->connections.end())
 			{
 				Connection &connection = foundConn->second;
 				RequestManager &requestManager = connection.getRequestManager();
 				Response &response = connection.getResponse();
 
 				if (occurredEvent & EPOLLERR || occurredEvent & EPOLLHUP)
+				{
+					Logger::error() << "ServerManager: " << eventFd << ": occurred error event" << std::endl;
 					this->disconnect(eventFd);
+				}
 				else if (occurredEvent & EPOLLIN)
 				{
 					const ServerConfig &config = this->servers[connection.getServerFd()];
@@ -140,8 +141,9 @@ void ServerManager::loop()
 					{
 						newEvent = response.process(errorCode, config);
 					}
-					catch (...)
+					catch (const std::exception &e)
 					{
+						Logger::error() << e.what() << std::endl;
 						this->disconnect(eventFd);
 						continue;
 					}
@@ -158,7 +160,10 @@ void ServerManager::loop()
 					if (response.done())
 					{
 						if (response.close())
+						{
+							Logger::info() << "response done. connection close" << std::endl;
 							this->disconnect(eventFd);
+						}
 						else
 						{
 							if (requestManager.isReady())
@@ -166,6 +171,7 @@ void ServerManager::loop()
 								const ServerConfig &config = this->servers[connection.getServerFd()];
 								std::pair<int, int> newEvent(-1, 0);
 
+								Logger::info() << "handle pipelining request" << std::endl;
 								try
 								{
 									Request &request = requestManager.pop();
@@ -178,9 +184,15 @@ void ServerManager::loop()
 								registerResposneEvent(eventFd, response, newEvent);
 							}
 							else if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
+							{
+								Logger::info() << "keep-alive, clear connection" << std::endl;
 								connection.clear(); // use request.clear(), response.claer())
+							}
 							else
+							{
+								Logger::info() << "ServerManager: " << std::strerror(errno) << std::endl;
 								this->disconnect(eventFd);
+							}
 						}
 					}
 				}
@@ -278,8 +290,6 @@ void ServerManager::connect(int serverFd)
 	int fd = accept(serverFd, (struct sockaddr *)&clientAddr, (socklen_t *)&clientLength);
 	fcntl(fd, F_SETFL, O_NONBLOCK);
 	this->fdInUse.insert(fd);
-	std::cout << "id [" << fd << "]: "
-						<< "connected\n";
 	if (fd == -1)
 		return;
 
@@ -288,8 +298,12 @@ void ServerManager::connect(int serverFd)
 		connections[fd];
 		// connections[fd].setServerFd(serverFd);
 	}
+	Logger::info() << "ServerManager: " << fd << " connected" << std::endl;
 	if (this->addEvent(fd, EPOLLIN) == -1)
+	{
+		Logger::error() << "ServerManager::connect: " << std::strerror(errno) << std::endl;
 		this->disconnect(fd);
+	}
 }
 
 void ServerManager::disconnect(int fd)
@@ -297,8 +311,7 @@ void ServerManager::disconnect(int fd)
 	this->deleteEvent(fd);
 	connections.erase(fd);
 	close(fd);
-	std::cout << "id [" << fd << "]: "
-						<< "disconnected\n";
+	Logger::info() << "ServerManager: " << fd << " disconnected" << std::endl;
 }
 
 int ServerManager::receive(int fd)
@@ -307,6 +320,11 @@ int ServerManager::receive(int fd)
 	int nbytes = recv(fd, buffer, BUFFER_SIZE, 0);
 	if (nbytes == 0)
 		return -1;
+	else if (nbytes < 0)
+	{
+		Logger::error() << fd << ": recv failure" << std::endl;
+		return -1;
+	}
 	else
 	{
 		RequestManager &requestManager = connections[fd].getRequestManager();
@@ -326,6 +344,10 @@ int ServerManager::send(int fd, Response &response)
 	{
 		response.moveBufPosition(nbytes);
 	}
+	else if (nbytes < 0)
+	{
+		Logger::error() << fd << ": send failure" << std::endl;
+	}
 	return nbytes;
 }
 
@@ -335,12 +357,20 @@ void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<
 
 	if (newEvent.first != -1)
 	{
+		this->extraFds[newEvent.first] = eventFd;
 		if (this->addEvent(newEvent.first, newEvent.second) == -1)
+		{
+			Logger::debug(LOG_LINE) << std::strerror(errno) << ": errno " << errno << std::endl;
 			this->disconnect(eventFd);
+			return;
+		}
+		Logger::debug(LOG_LINE) << "add extra event: " << newEvent.first << std::endl;
 	}
 	else if (res.ready())
 	{
+		this->extraFds[newEvent.first] = eventFd;
 		if (this->modifyEvent(eventFd, dummyEvent, EPOLLIN | EPOLLOUT) == -1)
 			this->disconnect(eventFd);
+		Logger::debug(LOG_LINE) << "modify client event" << std::endl;
 	}
 }

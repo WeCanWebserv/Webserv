@@ -165,6 +165,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
+	Logger::debug(LOG_LINE) << "serve '" << targetPath << "'" << std::endl;
 	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
 	if (this->body.fd == -1)
 	{

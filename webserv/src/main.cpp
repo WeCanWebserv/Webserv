@@ -1,8 +1,11 @@
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 
 #include <exception>
 #include <iostream>
 
+#include "Logger.hpp"
 #include "ServerManager.hpp"
 
 void usage(char *name)
@@ -14,6 +17,7 @@ void usage(char *name)
 
 int main(int ac, char **av)
 {
+	Logger::init(Logger::LOGLEVEL_DEBUG, "/dev/stderr");
 	if (ac > 2)
 	{
 		usage(av[1]);
@@ -26,7 +30,7 @@ int main(int ac, char **av)
 	}
 	catch (std::exception &e)
 	{
-		std::cerr << e.what() << std::endl;
+		std::cerr << e.what() << ": " << std::strerror(errno) << std::endl;
 		return (EXIT_FAILURE);
 	}
 	return (EXIT_SUCCESS);
