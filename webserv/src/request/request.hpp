@@ -14,6 +14,8 @@ private:
 
 public:
 	Request();
+	Request(const Request& other);
+	Request& operator=(const Request& other);
 	// ~Request();
 	Startline &getStartline(void);
 	Header &getHeader(void);
