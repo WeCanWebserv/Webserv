@@ -29,6 +29,8 @@ public:
 		return this->response;
 	}
 
+	int getServerFd() const;
+
 	void clear();
 };
 

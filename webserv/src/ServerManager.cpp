@@ -119,6 +119,7 @@ void ServerManager::loop()
 					this->disconnect(eventFd);
 				else if (occurredEvent & EPOLLIN)
 				{
+					const ServerConfig &config = this->servers[connection.getServerFd()];
 					std::pair<int, int> newEvent(-1, 0);
 
 					try
@@ -131,19 +132,18 @@ void ServerManager::loop()
 						if (requestManager.isReady())
 						{
 							Request &request = requestManager.pop();
-							newEvent = response.process(request, servers[eventFd], eventFd);
+							newEvent = response.process(request, config, eventFd);
 						}
 					}
 					catch (int errorCode)
 					{
-						newEvent = response.process(errorCode, servers[eventFd]);
+						newEvent = response.process(errorCode, config);
 					}
 					catch (...)
 					{
 						this->disconnect(eventFd);
 						continue;
 					}
-
 					registerResposneEvent(eventFd, response, newEvent);
 				}
 				else if (occurredEvent & EPOLLOUT)
@@ -162,18 +162,18 @@ void ServerManager::loop()
 						{
 							if (requestManager.isReady())
 							{
+								const ServerConfig &config = this->servers[connection.getServerFd()];
 								std::pair<int, int> newEvent(-1, 0);
 
 								try
 								{
 									Request &request = requestManager.pop();
-									newEvent = response.process(request, servers[eventFd], eventFd);
+									newEvent = response.process(request, config, eventFd);
 								}
 								catch (int errorCode)
 								{
-									newEvent = response.process(errorCode, servers[eventFd]);
+									newEvent = response.process(errorCode, config);
 								}
-
 								registerResposneEvent(eventFd, response, newEvent);
 							}
 							else if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
