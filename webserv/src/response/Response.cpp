@@ -56,6 +56,7 @@ void Response::clear()
 	this->header.clear();
 	this->cgi.clear();
 
+	this->statusCode = 200;
 	this->isReady = false;
 }
 
