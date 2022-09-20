@@ -56,6 +56,7 @@ void Response::clear()
 	this->header.clear();
 	this->cgi.clear();
 
+	this->statusCode = 200;
 	this->isReady = false;
 }
 
@@ -164,6 +165,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
+	Logger::debug(LOG_LINE) << "serve '" << targetPath << "'" << std::endl;
 	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
 	if (this->body.fd == -1)
 	{
