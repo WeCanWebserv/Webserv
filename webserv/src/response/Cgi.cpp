@@ -217,11 +217,12 @@ char **Cgi::generateMetaVariables(Request &req,
 	const size_t envSize = env.size();
 	int i = 0;
 
-	result = new char *[envSize];
+	result = new char *[envSize + 1];
 	for (env_type::iterator it = env.begin(), ite = env.end(); it != ite; ++it, ++i)
 	{
 		result[i] = ft::strdup(it->first + "=" + it->second);
 	}
+	result[envSize] = NULL;
 	return (result);
 }
 
