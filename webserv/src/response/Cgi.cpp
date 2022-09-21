@@ -85,6 +85,11 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		return (1);
 	}
 
+	fcntl(reqPipe[0], F_SETFL, O_NONBLOCK);
+	fcntl(reqPipe[1], F_SETFL, O_NONBLOCK);
+	fcntl(resPipe[0], F_SETFL, O_NONBLOCK);
+	fcntl(resPipe[1], F_SETFL, O_NONBLOCK);
+
 	this->pid = fork();
 	if (this->pid == -1)
 	{
@@ -116,11 +121,8 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		close(reqPipe[0]);
 		close(resPipe[1]);
 
-		fd[0] = resPipe[0];
-		fd[1] = reqPipe[1];
-
-		fcntl(fd[0], F_SETFL, O_NONBLOCK);
-		fcntl(fd[1], F_SETFL, O_NONBLOCK);
+		this->fd[0] = resPipe[0];
+		this->fd[1] = reqPipe[1];
 	}
 	return (0);
 }
