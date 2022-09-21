@@ -215,9 +215,7 @@ int Response::readBody()
 	}
 	else if (n == 0)
 	{
-		if (cgi)
-			cgi.parseCgiResponse(*this);
-		else if (this->body.size)
+		if (this->body.size)
 			setHeader("Content-Length", ft::toString(this->body.size));
 
 		setBuffer();
@@ -247,6 +245,28 @@ int Response::writeBody()
 	}
 	moveBufPosition(n);
 	return (0);
+}
+
+void Response::parseCgiResponse()
+{
+	int exitCode = this->cgi.exitCode();
+
+	if (exitCode == 0)
+	{
+		this->cgi.parseCgiResponse(*this);
+
+		if (this->header.find("Content-Length") == this->header.end())
+		{
+			setStatusCode(204);
+			this->body.buffer << CRLF;
+		}
+		setBuffer();
+	}
+	else
+	{
+		throw(503);
+	}
+	// exit code가 0이 아니거나 buffer가 없거나 CRLF CRLF가 없을 때 -> 200은 안된다. 204 or error code
 }
 
 std::map<std::string, LocationConfig>::const_iterator

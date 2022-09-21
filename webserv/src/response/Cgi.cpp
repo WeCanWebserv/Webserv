@@ -56,6 +56,17 @@ bool Cgi::fail()
 	return (status != 0);
 }
 
+int Cgi::exitCode() const
+{
+	int status;
+
+	waitpid(this->pid, &status, WNOHANG);
+
+	Logger::info() << "Cgi: process " << this->pid << " exit code: " << WEXITSTATUS(status)
+								 << " with signal " << WTERMSIG(status) << std::endl;
+	return (status);
+}
+
 void Cgi::clear()
 {
 	this->pid = -1;

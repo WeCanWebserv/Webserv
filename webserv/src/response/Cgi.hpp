@@ -25,6 +25,7 @@ public:
 	operator bool() const;
 
 	bool fail();
+	int exitCode() const;
 
 	void clear();
 

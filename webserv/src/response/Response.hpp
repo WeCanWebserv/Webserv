@@ -56,6 +56,7 @@ public:
 
 	int readBody();
 	int writeBody();
+	void parseCgiResponse();
 
 private:
 	std::map<std::string, LocationConfig>::const_iterator

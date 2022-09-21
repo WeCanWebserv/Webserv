@@ -216,21 +216,46 @@ void ServerManager::loop()
 
 				Connection &connection = foundConn->second;
 				Response &response = connection.getResponse();
+				int originFd = foundFd->second;
 
-				if (occurredEvent & EPOLLIN)
+				if (occurredEvent & EPOLLHUP)
+				{
+					try
+					{
+						response.parseCgiResponse();
+					}
+					catch (int errorCode)
+					{
+						const ServerConfig &config = this->servers[connection.getServerFd()];
+
+						response.process(errorCode, config, true);
+					}
+
+					/**
+					 * cgi 스크립트가 응답을 완료하여 이벤트 삭제
+					 */
+					this->deleteEvent(eventFd);
+					this->extraFds.erase(eventFd);
+					close(eventFd);
+
+					/**
+					 * client에게 Response send를 위한 이벤트 등록
+					 */
+					this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
+				}
+				else if (occurredEvent & EPOLLIN)
 				{
 					int n;
 
 					n = response.readBody();
 					if (n <= 0)
 					{
+						// TODO: set error page
 						this->deleteEvent(eventFd);
 						this->extraFds.erase(eventFd);
 						close(eventFd);
-						if (n == -1)
-							this->disconnect(foundFd->second);
-						else
-							this->modifyEvent(foundFd->second, currentEvent, EPOLLIN | EPOLLOUT);
+
+						this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
 					}
 				}
 				else if (occurredEvent & EPOLLOUT)
@@ -242,8 +267,10 @@ void ServerManager::loop()
 						this->deleteEvent(eventFd);
 						this->extraFds.erase(eventFd);
 						close(eventFd);
+
+						// TODO: set error page
 						if (pipe == -1)
-							this->disconnect(foundFd->second);
+							this->disconnect(originFd);
 						else
 							this->addEvent(pipe, EPOLLIN);
 					}
