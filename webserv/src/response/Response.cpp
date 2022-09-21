@@ -87,11 +87,12 @@ std::size_t Response::moveBufPosition(int nbyte)
  */
 std::pair<int, int> Response::process(Request &req, const ServerConfig &config, int clientFd)
 {
-	UriParser uriParser(req.getStartline().uri);
+	Startline &startLine = req.getStartline();
+	UriParser uriParser(startLine.uri);
 	std::string targetPath = uriParser.getPath();
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
-	if (req.getStartline().httpVersion == "HTTP/1.0")
+	if (startLine.httpVersion == "HTTP/1.0")
 		this->isClose = true;
 
 	locIter = findLocation(targetPath, config.tableOfLocations);
@@ -104,7 +105,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	const std::string &locPath = (*locIter).first;
 	const LocationConfig &location = (*locIter).second;
 
-	if (location.allowedMethods.find(req.getStartline().method) == location.allowedMethods.end())
+	if (location.allowedMethods.find(startLine.method) == location.allowedMethods.end())
 	{
 		Logger::info() << "Response::process: not allowed method" << std::endl;
 		throw(405);
@@ -126,7 +127,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 		files = readDirectory(targetPath);
 		if (location.isAutoIndexOn)
-			return (setBodyToDefaultPage(generateFileListPage(req.getStartline().uri, files)));
+			return (setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root, files)));
 		else
 		{
 			std::string index;
@@ -345,16 +346,17 @@ std::string Response::generateDefaultErrorPage(int code) const
 	return (html.str());
 }
 
-std::string
-Response::generateFileListPage(const std::string &path, const std::vector<std::string> &files) const
+std::string Response::generateFileListPage(const std::string &uri,
+																					 const std ::string &root,
+																					 const std::vector<std::string> &files) const
 {
 	std::stringstream html;
 	std::size_t totalFiles = files.size();
 
 	html << "<html>\n";
-	html << "<head><title>Index of " << path << "</title></head>\n";
+	html << "<head><title>Index of " << uri << "</title></head>\n";
 	html << "<body>\n";
-	html << "<h1>Index of " << path << "</h1><hr><pre><a href=\"../\">../</a>\n";
+	html << "<h1>Index of " << uri << "</h1><hr><pre><a href=\"../\">../</a>\n";
 
 	for (std::size_t i = 0; i < totalFiles; ++i)
 	{
@@ -362,10 +364,15 @@ Response::generateFileListPage(const std::string &path, const std::vector<std::s
 		if (files[i][0] == '.')
 			continue;
 
+		const std::string path = root + files[i];
 		struct stat st;
 
-		if (stat(files[i].c_str(), &st) == -1)
+		if (stat(path.c_str(), &st) == -1)
+		{
+			Logger::error() << files[i] << ": " << std::strerror(errno) << std::endl;
 			continue;
+		}
+
 		// file name
 		html << "<a href=\"" << files[i] << "\">" << files[i] << "</a>";
 		html << std::string(50 - files[i].size(), ' ');

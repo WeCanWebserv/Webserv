@@ -67,8 +67,9 @@ private:
 
 	std::pair<int, int> setBodyToDefaultPage(const std::string &html);
 	std::string generateDefaultErrorPage(int code) const;
-	std::string
-	generateFileListPage(const std::string &path, const std::vector<std::string> &files) const;
+	std::string generateFileListPage(const std::string &uri,
+																	 const std::string &root,
+																	 const std::vector<std::string> &files) const;
 
 	void clearBuffer();
 	void clearBody(Body &body);
