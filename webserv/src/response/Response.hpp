@@ -6,6 +6,7 @@
 #include "Cgi.hpp"
 
 #include <ctime>
+#include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -22,8 +23,9 @@ public:
 		int fd;
 		std::size_t size;
 		std::stringstream buffer;
+		std::ifstream file;
 
-		Body() : fd(-1), size(0), buffer() {}
+		Body() : fd(-1), size(0), buffer(), file() {}
 	};
 
 private:
@@ -52,7 +54,7 @@ public:
 	std::size_t moveBufPosition(int nbyte);
 
 	std::pair<int, int> process(Request &req, const ServerConfig &config, int clientFd);
-	std::pair<int, int> process(int errorCode, const ServerConfig &config, bool close = false);
+	void process(int errorCode, const ServerConfig &config, bool close = false);
 
 	int readBody();
 	int writeBody();
@@ -74,6 +76,8 @@ private:
 
 	void clearBuffer();
 	void clearBody(Body &body);
+
+	size_t getFileSize();
 
 	std::vector<std::string> readDirectory(const std::string &path);
 	std::string searchIndexFile(const std::vector<std::string> &files,

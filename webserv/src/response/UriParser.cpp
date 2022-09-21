@@ -68,7 +68,7 @@ std::string UriParser::getExtension() const
 
 	path = getFile();
 
-	pos = path.find('.');
+	pos = path.rfind('.');
 	if (pos == std::string::npos)
 		return ("");
 	return (path.substr(pos));
@@ -81,7 +81,7 @@ std::string UriParser::getFile() const
 
 	path = getPath();
 
-	pos = path.find('.');
+	pos = path.rfind('.');
 	if (pos == std::string::npos)
 		return (path);
 	pos = path.find('/', pos);

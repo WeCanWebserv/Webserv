@@ -122,7 +122,7 @@ void ServerManager::loop()
 				else if (occurredEvent & EPOLLIN)
 				{
 					const ServerConfig &config = this->servers[connection.getServerFd()];
-					std::pair<int, int> newEvent(-1, 0);
+					std::pair<int, int> pipeEvent(-1, -1);
 
 					try
 					{
@@ -134,12 +134,14 @@ void ServerManager::loop()
 						if (requestManager.isReady())
 						{
 							Request &request = requestManager.pop();
-							newEvent = response.process(request, config, eventFd);
+							pipeEvent = response.process(request, config, eventFd);
+							registerResposneEvent(eventFd, response, pipeEvent);
 						}
 					}
 					catch (int errorCode)
 					{
-						newEvent = response.process(errorCode, config);
+						response.process(errorCode, config);
+						registerResposneEvent(eventFd, response, pipeEvent);
 					}
 					catch (const std::exception &e)
 					{
@@ -147,7 +149,6 @@ void ServerManager::loop()
 						this->disconnect(eventFd);
 						continue;
 					}
-					registerResposneEvent(eventFd, response, newEvent);
 				}
 				else if (occurredEvent & EPOLLOUT)
 				{
@@ -169,19 +170,20 @@ void ServerManager::loop()
 							if (requestManager.isReady())
 							{
 								const ServerConfig &config = this->servers[connection.getServerFd()];
-								std::pair<int, int> newEvent(-1, 0);
+								std::pair<int, int> pipeEvent(-1, -1);
 
 								Logger::info() << "handle pipelining request" << std::endl;
 								try
 								{
 									Request &request = requestManager.pop();
-									newEvent = response.process(request, config, eventFd);
+									pipeEvent = response.process(request, config, eventFd);
+									registerResposneEvent(eventFd, response, pipeEvent);
 								}
 								catch (int errorCode)
 								{
-									newEvent = response.process(errorCode, config);
+									response.process(errorCode, config);
+									registerResposneEvent(eventFd, response, pipeEvent);
 								}
-								registerResposneEvent(eventFd, response, newEvent);
 							}
 							else if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
 							{
@@ -227,7 +229,6 @@ void ServerManager::loop()
 					catch (int errorCode)
 					{
 						const ServerConfig &config = this->servers[connection.getServerFd()];
-
 						response.process(errorCode, config, true);
 					}
 
@@ -248,9 +249,11 @@ void ServerManager::loop()
 					int n;
 
 					n = response.readBody();
-					if (n <= 0)
+					if (n < 0)
 					{
-						// TODO: set error page
+						const ServerConfig &config = this->servers[connection.getServerFd()];
+						response.process(503, config, true);
+
 						this->deleteEvent(eventFd);
 						this->extraFds.erase(eventFd);
 						close(eventFd);
@@ -262,18 +265,22 @@ void ServerManager::loop()
 				{
 					int pipe = response.writeBody();
 
-					if (pipe > 0)
-					{
-						this->deleteEvent(eventFd);
-						this->extraFds.erase(eventFd);
-						close(eventFd);
+					if (pipe == 0)
+						continue;
 
-						// TODO: set error page
-						if (pipe == -1)
-							this->disconnect(originFd);
-						else
-							this->addEvent(pipe, EPOLLIN);
+					this->deleteEvent(eventFd);
+					this->extraFds.erase(eventFd);
+					close(eventFd);
+
+					if (pipe < 0)
+					{
+						const ServerConfig &config = this->servers[connection.getServerFd()];
+						response.process(503, config, true);
+
+						this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
 					}
+					else
+						this->addEvent(pipe, EPOLLIN);
 				}
 			}
 		}
@@ -381,26 +388,25 @@ int ServerManager::send(int fd, Response &response)
 	return nbytes;
 }
 
-void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<int, int> newEvent)
+void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<int, int> pipeEvent)
 {
 	epoll_event dummyEvent;
 
-	if (newEvent.first != -1)
+	if (pipeEvent.first != -1)
 	{
-		this->extraFds[newEvent.first] = eventFd;
-		if (this->addEvent(newEvent.first, newEvent.second) == -1)
+		this->extraFds[pipeEvent.first] = eventFd;
+		if (this->addEvent(pipeEvent.first, pipeEvent.second) == -1)
 		{
 			Logger::debug(LOG_LINE) << std::strerror(errno) << ": errno " << errno << std::endl;
 			this->disconnect(eventFd);
 			return;
 		}
-		Logger::debug(LOG_LINE) << "add extra event: " << newEvent.first << std::endl;
+		Logger::debug(LOG_LINE) << "add pipe event: fd" << pipeEvent.first << std::endl;
 	}
 	else if (res.ready())
 	{
-		this->extraFds[newEvent.first] = eventFd;
 		if (this->modifyEvent(eventFd, dummyEvent, EPOLLIN | EPOLLOUT) == -1)
 			this->disconnect(eventFd);
-		Logger::debug(LOG_LINE) << "modify client event" << std::endl;
+		Logger::debug(LOG_LINE) << "modify client event to EPOLLIN | EPOLLOUT" << std::endl;
 	}
 }

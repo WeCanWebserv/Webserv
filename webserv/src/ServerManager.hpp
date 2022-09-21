@@ -57,7 +57,7 @@ protected:
 	int receive(int fd);
 	int send(int fd, Response &response);
 
-	void registerResposneEvent(int eventFd, Response &res, std::pair<int, int> newEvent);
+	void registerResposneEvent(int eventFd, Response &res, std::pair<int, int> pipeEvent);
 
 private:
 	ServerManager();

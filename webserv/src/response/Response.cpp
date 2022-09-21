@@ -116,7 +116,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		setStatusCode(location.redirectionSetting.first);
 		setHeader("Location", location.redirectionSetting.second);
 		setBuffer();
-		return (std::make_pair(-1, 0));
+		return (std::make_pair(-1, -1));
 	}
 
 	targetPath.replace(0, locPath.size(), location.root);
@@ -127,7 +127,10 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 		files = readDirectory(targetPath);
 		if (location.isAutoIndexOn)
-			return (setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root, files)));
+		{
+			setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root, files));
+			return (std::make_pair(-1, -1));
+		}
 		else
 		{
 			std::string index;
@@ -167,18 +170,25 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	}
 
 	Logger::debug(LOG_LINE) << "serve '" << targetPath << "'" << std::endl;
-	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
-	if (this->body.fd == -1)
+	this->body.file.open(targetPath.c_str());
+	if (!this->body.file)
 	{
 		Logger::info() << "Response::process: open(" << targetPath << "): " << std::strerror(errno)
 									 << std::endl;
 		throw(404);
 	}
-	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
-	return (std::make_pair(this->body.fd, EPOLLIN));
+	this->body.size = getFileSize();
+	if (this->body.size)
+	{
+		setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
+		setHeader("Content-Length", ft::toString(this->body.size));
+		this->body.buffer << this->body.file.rdbuf();
+	}
+	setBuffer();
+	return (std::make_pair(-1, -1));
 }
 
-std::pair<int, int> Response::process(int errorCode, const ServerConfig &config, bool close)
+void Response::process(int errorCode, const ServerConfig &config, bool close)
 {
 	std::string errorPage;
 
@@ -190,15 +200,22 @@ std::pair<int, int> Response::process(int errorCode, const ServerConfig &config,
 	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
 		errorPage = config.tableOfErrorPages.at(errorCode);
-		this->body.fd = open(errorPage.c_str(), O_RDONLY | O_NONBLOCK);
-		if (this->body.fd != -1)
+		this->body.file.open(errorPage.c_str());
+		if (this->body.file)
 		{
-			setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
-			return (std::make_pair(this->body.fd, EPOLLIN));
+			this->body.size = getFileSize();
+			if (this->body.size)
+			{
+				setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
+				setHeader("Content-Length", ft::toString(this->body.size));
+				this->body.buffer << this->body.file.rdbuf();
+			}
+			setBuffer();
+			return;
 		}
 	}
 
-	return (setBodyToDefaultPage(generateDefaultErrorPage(errorCode)));
+	setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
 }
 
 int Response::readBody()
@@ -212,15 +229,6 @@ int Response::readBody()
 	{
 		Logger::error() << "Response::readBody: read: " << std::strerror(errno) << std::endl;
 		return (-1);
-	}
-	else if (n == 0)
-	{
-		if (this->body.size)
-			setHeader("Content-Length", ft::toString(this->body.size));
-
-		setBuffer();
-
-		return (0);
 	}
 	buf[n] = '\0';
 	this->body.buffer << buf;
@@ -346,10 +354,13 @@ std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
 {
 	this->body.buffer << html;
 	this->body.size = html.size();
-	setHeader("Content-Length", ft::toString(this->body.size));
-	setHeader("Content-Type", MediaType::get(".html"));
+	if (this->body.size)
+	{
+		setHeader("Content-Length", ft::toString(this->body.size));
+		setHeader("Content-Type", MediaType::get(".html"));
+	}
 	setBuffer();
-	return (std::make_pair(-1, 0));
+	return (std::make_pair(-1, -1));
 }
 
 std::string Response::generateDefaultErrorPage(int code) const
@@ -422,6 +433,23 @@ void Response::clearBody(Body &targetBody)
 	targetBody.fd = -1;
 	targetBody.size = 0;
 	targetBody.buffer.str("");
+	targetBody.buffer.clear();
+	targetBody.file.close();
+	targetBody.file.clear();
+}
+
+size_t Response::getFileSize()
+{
+	std::ifstream &file = this->body.file;
+	size_t size = 0;
+
+	if (file)
+	{
+		file.seekg(0, file.end);
+		size = file.tellg();
+		file.seekg(0, file.beg);
+	}
+	return (size);
 }
 
 std::vector<std::string> Response::readDirectory(const std::string &path)
