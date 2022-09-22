@@ -78,11 +78,11 @@ bool RequestManager::isEmpty()
 	return this->requestQueue.size() == 1;
 }
 
-Request &RequestManager::pop()
+Request RequestManager::pop()
 {
 	if (this->requestQueue.empty())
 		throw std::out_of_range("RequestQueue is Empty\n");
-	Request &request = this->requestQueue.front();
+	Request request = this->requestQueue.front();
 	this->requestQueue.pop();
 	return request;
 }

@@ -133,7 +133,7 @@ void ServerManager::loop()
 						}
 						if (requestManager.isReady())
 						{
-							Request &request = requestManager.pop();
+							Request request = requestManager.pop();
 							pipeEvent = response.process(request, config, eventFd);
 							registerResposneEvent(eventFd, response, pipeEvent);
 						}
@@ -175,7 +175,7 @@ void ServerManager::loop()
 								Logger::info() << "handle pipelining request" << std::endl;
 								try
 								{
-									Request &request = requestManager.pop();
+									Request request = requestManager.pop();
 									pipeEvent = response.process(request, config, eventFd);
 									registerResposneEvent(eventFd, response, pipeEvent);
 								}
