@@ -3,7 +3,6 @@
 #include "../libft.hpp"
 #include "../request/request.hpp"
 #include "Response.hpp"
-#include "UriParser.hpp"
 
 #include <cerrno>
 #include <cstring>
@@ -73,7 +72,8 @@ void Cgi::clear()
 	this->isCgi = false;
 }
 
-int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd)
+int Cgi::run(
+		const std::string &cgiBin, Uri &uri, Request &req, const ServerConfig &config, int clientFd)
 {
 	int reqPipe[2];
 	int resPipe[2];
@@ -119,10 +119,8 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		close(resPipe[0]);
 		dup2(resPipe[1], STDOUT_FILENO);
 
-		UriParser uriParser(req.getStartline().uri);
-		char *cmd[] = {ft::strdup(location.tableOfCgiBins.at(uriParser.getExtension())),
-									 ft::strdup(location.root + uriParser.getFile()), NULL};
-		char **env = generateMetaVariables(req, config, location, clientFd);
+		char *cmd[] = {ft::strdup(cgiBin), ft::strdup(uri.getServerPath()), NULL};
+		char **env = generateMetaVariables(uri, req, config, clientFd);
 		execve(cmd[0], cmd, env);
 		exit(errno);
 	}
@@ -138,10 +136,7 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 	return (0);
 }
 
-char **Cgi::generateMetaVariables(Request &req,
-																	const ServerConfig &config,
-																	const LocationConfig &location,
-																	int clientFd)
+char **Cgi::generateMetaVariables(Uri &uri, Request &req, const ServerConfig &config, int clientFd)
 {
 	typedef std::map<std::string, std::string> env_type;
 
@@ -160,7 +155,7 @@ char **Cgi::generateMetaVariables(Request &req,
 	 */
 	env["SERVER_ADDR"] = config.listennedHost;
 	env["SERVER_PORT"] = config.listennedPort;
-	env["SERVER_NAME"] = config.listOfServerNames.front();
+	env["SERVER_NAME"] = config.listOfServerNames.front(); // or Host header value
 	env["SERVER_PROTOCOL"] = "HTTP/1.1";
 	env["SERVER_SOFTWARE"] = "webserv";
 
@@ -177,27 +172,21 @@ char **Cgi::generateMetaVariables(Request &req,
 	/**
 	 * uri
 	 */
-	UriParser uriParser(req.getStartline().uri);
-
 	env["REQUEST_METHOD"] = req.getStartline().method;
 	env["REQUEST_URI"] = req.getStartline().uri;
-	env["DOCUMENT_URI"] = uriParser.getPath();
-	env["DOCUMENT_ROOT"] = location.root;
-	env["SCRIPT_NAME"] = uriParser.getFile();
-	env["SCRIPT_FILENAME"] = env["DOCUMENT_ROOT"] + env["SCRIPT_NAME"];
+	env["DOCUMENT_URI"] = uri.path;
+	env["DOCUMENT_ROOT"] = uri.root.second;
+	env["SCRIPT_NAME"] = uri.file;
+	env["SCRIPT_FILENAME"] = uri.getServerPath();
 
-	std::string pathInfo = uriParser.getPathInfo();
-
-	if (pathInfo.size())
+	if (uri.pathInfo.size())
 	{
-		env["PATH_INFO"] = pathInfo; // uri에서 SCRIPT_NAME 뒤에 오는 경로
+		env["PATH_INFO"] = uri.pathInfo; // uri에서 SCRIPT_NAME 뒤에 오는 경로
 		env["PATH_TRANSLATED"] = env["DOCUMENT_ROOT"] + env["PATH_INFO"];
 	}
 
-	std::string query = uriParser.getQuery();
-
-	if (query.size())
-		env["QUERY_STRING"] = query;
+	if (uri.query.size())
+		env["QUERY_STRING"] = uri.query;
 
 	/**
 	 * Request Header

@@ -18,7 +18,7 @@ RESPONSE_SRCS	=		$(addprefix $(DEFAULT_DIR)/response/, \
 											Cgi.cpp \
 											MediaType.cpp \
 											ReasonPhrase.cpp \
-											UriParser.cpp \
+											Uri.cpp \
 											)
 
 SRCS					=		$(REQUEST_SRCS) \

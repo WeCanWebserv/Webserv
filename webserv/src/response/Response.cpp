@@ -3,7 +3,7 @@
 #include "../request/request.hpp"
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
-#include "UriParser.hpp"
+#include "Uri.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -88,14 +88,13 @@ std::size_t Response::moveBufPosition(int nbyte)
 std::pair<int, int> Response::process(Request &req, const ServerConfig &config, int clientFd)
 {
 	Startline &startLine = req.getStartline();
-	UriParser uriParser(startLine.uri);
-	std::string targetPath = uriParser.getPath();
+	Uri uri(startLine.uri);
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
 	if (startLine.httpVersion == "HTTP/1.0")
 		this->isClose = true;
 
-	locIter = findLocation(targetPath, config.tableOfLocations);
+	locIter = findLocation(uri.path, config.tableOfLocations);
 	if (locIter == config.tableOfLocations.end())
 	{
 		Logger::info() << "Response::process: not found location block" << std::endl;
@@ -119,13 +118,13 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		return (std::make_pair(-1, -1));
 	}
 
-	targetPath.replace(0, locPath.size(), location.root);
+	uri.setRoot(locPath, location.root);
 
-	if (uriParser.isDirectory())
+	if (uri.path[uri.path.size() - 1] == '/')
 	{
 		std::vector<std::string> files;
 
-		files = readDirectory(targetPath);
+		files = readDirectory(uri.getServerPath());
 		if (location.isAutoIndexOn)
 		{
 			setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root, files));
@@ -142,13 +141,14 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 											 << std::endl;
 				throw(404);
 			}
-			targetPath += index;
+			uri.setIndexFile(index);
 		}
 	}
 
-	if (location.tableOfCgiBins.find(uriParser.getExtension()) != location.tableOfCgiBins.end())
+	if (location.tableOfCgiBins.find(uri.extension) != location.tableOfCgiBins.end())
 	{
-		if (cgi.run(req, config, location, clientFd))
+		std::string cgiBin = location.tableOfCgiBins.at(uri.extension);
+		if (cgi.run(cgiBin, uri, req, config, clientFd))
 		{
 			Logger::error() << "Cgi::run: " << std::strerror(errno) << std::endl;
 			throw(500);
@@ -169,18 +169,18 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
-	Logger::debug(LOG_LINE) << "serve '" << targetPath << "'" << std::endl;
-	this->body.file.open(targetPath.c_str());
+	Logger::debug(LOG_LINE) << "serve '" << uri.getServerPath() << "'" << std::endl;
+	this->body.file.open(uri.getServerPath().c_str());
 	if (!this->body.file)
 	{
-		Logger::info() << "Response::process: open(" << targetPath << "): " << std::strerror(errno)
-									 << std::endl;
+		Logger::info() << "Response::process: open(" << uri.getServerPath()
+									 << "): " << std::strerror(errno) << std::endl;
 		throw(404);
 	}
 	this->body.size = getFileSize();
 	if (this->body.size)
 	{
-		setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
+		setHeader("Content-Type", MediaType::get(uri.extension));
 		setHeader("Content-Length", ft::toString(this->body.size));
 		this->body.buffer << this->body.file.rdbuf();
 	}
@@ -190,8 +190,6 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 void Response::process(int errorCode, const ServerConfig &config, bool close)
 {
-	std::string errorPage;
-
 	clear();
 
 	this->statusCode = errorCode;
@@ -199,14 +197,16 @@ void Response::process(int errorCode, const ServerConfig &config, bool close)
 
 	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
-		errorPage = config.tableOfErrorPages.at(errorCode);
+		std::string errorPage = config.tableOfErrorPages.at(errorCode);
+
+		Logger::debug(LOG_LINE) << "found error page: " << errorPage << std::endl;
 		this->body.file.open(errorPage.c_str());
 		if (this->body.file)
 		{
 			this->body.size = getFileSize();
 			if (this->body.size)
 			{
-				setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
+				setHeader("Content-Type", MediaType::get(Uri(errorPage).extension));
 				setHeader("Content-Length", ft::toString(this->body.size));
 				this->body.buffer << this->body.file.rdbuf();
 			}
@@ -274,7 +274,6 @@ void Response::parseCgiResponse()
 	{
 		throw(503);
 	}
-	// exit code가 0이 아니거나 buffer가 없거나 CRLF CRLF가 없을 때 -> 200은 안된다. 204 or error code
 }
 
 std::map<std::string, LocationConfig>::const_iterator
