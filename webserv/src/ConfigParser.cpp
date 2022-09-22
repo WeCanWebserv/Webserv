@@ -1,5 +1,7 @@
 #include "ConfigParser.hpp"
 
+#include <errno.h>
+q
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -20,7 +22,10 @@
 ConfigParser::ConfigParser(const char *path) : configFile(path)
 {
 	if (!this->configFile)
-		throw std::runtime_error("file not found");
+	{
+		Logger::error() << __func__ << ":" << __LINE__ " configuration file not found" << std::endl;
+		throw std::runtime_error(strerror(ENOENT));
+	}
 	this->populate();
 }
 
@@ -95,14 +100,22 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 	if (token == "{")
 	{
 		if (serverBlock.isInBlock)
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << "syntax error: unexpected token '{'"
+											<< std::endl;
+			throw std::runtime_error("syntax error: unexpected token '{'");
+		}
 
 		serverBlock.isInBlock = true;
 	}
 	else if (token == "}")
 	{
 		if (!serverBlock.isInBlock)
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << "syntax error: unexpected token '}'"
+											<< std::endl;
+			throw std::runtime_error("syntax error: unexpected token '}'");
+		}
 
 		configBlock.serverBlocks.push_back(serverBlock);
 		configBlock.nextServerBlock.directives.clear();
@@ -114,18 +127,29 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 	else
 	{
 		if (!serverBlock.isInBlock)
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << "syntax error: token '{' expected"
+											<< std::endl;
+			throw std::runtime_error("syntax error: token '{' expected");
+		}
 
 		if (token == "location")
 		{
 			std::string uri;
 			std::getline(lineBuffer, uri, ' ');
 			if (uri.empty() || uri[0] != '/')
+			{
+				Logger::error() << __func__ << ":" << __LINE__ < < < < std::endl;
 				throw std::runtime_error("syntax wrong: context location");
+			}
 
 			std::map<std::string, LocationBlock> &locationBlocks = serverBlock.locationBlocks;
 			if (locationBlocks.find(uri) != locationBlocks.end())
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: duplicated url"
+												<< std::endl;
 				throw std::runtime_error("duplicated url");
+			}
 
 			serverBlock.nextUri = uri;
 			configBlock.context = CONTEXT_LOCATION;
@@ -133,7 +157,10 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 		else
 		{
 			if (line[line.length() - 1] != ';')
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: " << std::endl;
 				throw std::runtime_error("syntax wrong: context location");
+			}
 
 			serverBlock.directives.push_back(line.substr(0, line.length() - 1));
 		}
@@ -154,14 +181,22 @@ void ConfigParser::handleLineInLocationBlock(ConfigBlock &configBlock, std::stri
 	if (token == "{")
 	{
 		if (locationBlock.isInBlock)
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << "syntax error: unexpected token '{'"
+											<< std::endl;
+			throw std::runtime_error("syntax error: unexpected token '{'");
+		}
 
 		locationBlock.isInBlock = true;
 	}
 	else if (token == "}")
 	{
 		if (!locationBlock.isInBlock)
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << "syntax error: unexpected token '}'"
+											<< std::endl;
+			throw std::runtime_error("syntax error: unexpected token '}'");
+		}
 
 		serverBlock.locationBlocks.insert(std::make_pair(nextUri, locationBlock));
 		serverBlock.nextLocationBlock.directives.clear();
@@ -171,10 +206,18 @@ void ConfigParser::handleLineInLocationBlock(ConfigBlock &configBlock, std::stri
 	else
 	{
 		if (!locationBlock.isInBlock)
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << "syntax error: token '{' expected"
+											<< std::endl;
+			throw std::runtime_error("syntax error: token '{' expected");
+		}
 
 		if (line[line.length() - 1] != ';')
-			throw std::runtime_error("syntax wrong: context location");
+		{
+			Logger::error() << __func__ << ":" << __LINE__
+											<< "syntax error: linebreak ';' not found in directives" << std::endl;
+			throw std::runtime_error("syntax error: ';' not found in directives");
+		}
 
 		locationBlock.directives.push_back(line.substr(0, line.length() - 1));
 	}
@@ -191,7 +234,10 @@ void ConfigParser::handleLineInNoContext(ConfigBlock &configBlock, std::string &
 	if (token == "server")
 		configBlock.context = CONTEXT_SERVER;
 	else if (line[line.length() - 1] != ';')
+	{
+		Logger::error() << __func__ << ":" << __LINE__ << " configuration file not found" << std::endl;
 		throw std::runtime_error("syntax wrong: context non");
+	}
 	else
 		configBlock.directives.push_back(line.substr(0, line.length() - 1));
 }
@@ -255,22 +301,41 @@ LocationConfig LocationBlock::toLocationConfig()
 		std::vector<std::string> tokens = ft_split(directives[i], ' ');
 		const std::string &directive = tokens[0];
 		if (this->kindOf.find(directive) == this->kindOf.end())
-			throw std::runtime_error("invalid location block directive");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invalid directive"
+											<< std::endl;
+			throw std::runtime_error("invalid directive");
+		}
 		switch (this->kindOf[directive])
 		{
 		case LOC_ROOT:
 		{
 			if (tokens.size() != 2)
-				throw std::runtime_error("invalid location block: root:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: root: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			locationConfig.root = tokens[1];
 			break;
 		}
 		case LOC_INDEX:
 		{
 			if (tokens.size() < 2)
-				throw std::runtime_error("invalid location block: root:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: index: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			if (!locationConfig.indexFiles.empty())
-				throw std::runtime_error("invalid location block: index: duplicated");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: index: index files data already initialized"
+												<< std::endl;
+				throw std::runtime_error("index files data already initialized");
+			}
 			locationConfig.indexFiles.insert(locationConfig.indexFiles.begin(), ++tokens.begin(),
 																			 tokens.end());
 			break;
@@ -278,19 +343,33 @@ LocationConfig LocationBlock::toLocationConfig()
 		case LOC_AUTOINDEX:
 		{
 			if (tokens.size() != 2 || (tokens[1] != "on" && tokens[1] != "off"))
-				throw std::runtime_error("invalid location block: autoindex");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: autoindex: invalid directive arguments" << std::endl;
+				throw std::runtime_error("invalid directive arguments");
+			}
 			locationConfig.isAutoIndexOn = tokens[1] == "on" ? true : false;
 			break;
 		}
 		case LOC_REDIRECTION:
 		{
 			if (tokens.size() < 2 || tokens.size() > 3)
-				throw std::runtime_error("invalid location block: redirection");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: index: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			std::stringstream buffer(tokens[1]);
 			int statusCode;
 			buffer >> statusCode;
 			if (!buffer.eof())
-				throw std::runtime_error("invalid location block: return:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: redirection: invalid integer string format"
+												<< std::endl;
+				throw std::runtime_error("invaild integer string format");
+			}
 			locationConfig.redirectionSetting.first = statusCode;
 			if (tokens.size() == 3)
 				locationConfig.redirectionSetting.second = tokens[2];
@@ -300,38 +379,81 @@ LocationConfig LocationBlock::toLocationConfig()
 		case LOC_ALLOWED_METHODS:
 		{
 			if (tokens.size() < 2)
-				throw std::runtime_error("invalid location block: allowed_method:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: index: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			for (size_t i = 1; i < tokens.size(); i++)
 			{
 				if (this->availableMethods.find(tokens[i]) == this->availableMethods.end())
-					throw std::runtime_error("invalid location block: allowed_method:");
+				{
+					Logger::error() << __func__ << ":" << __LINE__ << "LocationBlock: unavailable methods"
+													<< std::endl;
+					throw std::runtime_error("unavailable methods");
+				}
 				if (locationConfig.allowedMethods.insert(tokens[i]).second == false)
-					throw std::runtime_error("invalid location block: allowed_method:");
+				{
+					Logger::error() << __func__ << ":" << __LINE__ << "LocationBlock: duplicated methods"
+													<< std::endl;
+					throw std::runtime_error("duplicated methods");
+				}
 			}
 			break;
 		}
 		case LOC_CGI_BIN:
 		{
 			if (tokens.size() != 3)
-				throw std::runtime_error("invalid location block: cgi_bin:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: index: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			if (tokens[1][0] != '.')
-				throw std::runtime_error("invalid location block: cgi_bin:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invaild cgi-extension"
+												<< std::endl;
+				throw std::runtime_error("invalid cgi-extension");
+			}
 			if (locationConfig.tableOfCgiBins.insert(std::make_pair(tokens[1], tokens[2])).second ==
 					false)
-				throw std::runtime_error("invalid location block: cgi_bin: duplicated");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: duplicated cgi_bin extension" << std::endl;
+				throw std::runtime_error("duplicated cgi_bin extension");
+			}
 			break;
 		}
 		case LOC_CGI_UPLOAD:
 		{
 			if (tokens.size() != 3)
-				throw std::runtime_error("invalid location block: cgi_upload:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: index: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			if (tokens[1][0] != '.')
-				throw std::runtime_error("invalid location block: cgi_upload:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invaild cgi-extension"
+												<< std::endl;
+				throw std::runtime_error("invalid cgi-extension");
+			}
 			if (locationConfig.tableOfCgiBins.find(tokens[1]) == locationConfig.tableOfCgiBins.end())
-				throw std::runtime_error("invalid location block: cgi_upload:");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: cgi_upload-extension not found in cgi_bin" << std::endl;
+				throw std::runtime_error("cgi_upload-extension not found in cgi_bin");
+			}
 			if (locationConfig.tableOfCgiUploads.insert(std::make_pair(tokens[1], tokens[2])).second ==
 					false)
-				throw std::runtime_error("invalid location block: cgi_upload: duplicated");
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: duplicated cgi_uploads"
+												<< std::endl;
+				throw std::runtime_error("duplicated cgi_uploads");
+			}
 		}
 		}
 	}
@@ -357,15 +479,27 @@ ServerConfig ServerBlock::toServerConfig()
 		std::vector<std::string> tokens = ft_split(directives[i], ' ');
 		const std::string &directive = tokens[0];
 		if (this->kindOf.find(directive) == this->kindOf.end())
-			throw std::runtime_error("invalid server block directive");
+		{
+			Logger::error() << __func__ << ":" << __LINE__ " ServerBlock: invalid directive" << std::endl;
+			throw std::runtime_error("invalid directive");
+		}
 		switch (this->kindOf[directive])
 		{
 		case SERV_SERVER_NAME:
 		{
 			if (tokens.size() < 2)
-				throw std::runtime_error("invalied server block: server_name");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: server_name: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			if (!serverConfig.listOfServerNames.empty())
-				throw std::runtime_error("invalied server block: server_name");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: server_name already initialized" << std::endl;
+				throw std::runtime_error("server_name already initialized");
+			}
 			serverConfig.listOfServerNames.insert(serverConfig.listOfServerNames.begin(),
 																						++tokens.begin(), tokens.end());
 			break;
@@ -373,7 +507,12 @@ ServerConfig ServerBlock::toServerConfig()
 		case SERV_ERROR_PAGES:
 		{
 			if (tokens.size() < 3)
-				throw std::runtime_error("invalied server block: error_page");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: error_pages: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			const std::string &page = tokens.back();
 			for (size_t i = 1; i < tokens.size() - 1; i++)
 			{
@@ -381,20 +520,33 @@ ServerConfig ServerBlock::toServerConfig()
 				int statusCode;
 				buffer >> statusCode;
 				if (serverConfig.tableOfErrorPages.insert(std::make_pair(statusCode, page)).second == false)
-					throw std::runtime_error("invalied server block: error_page");
+				{
+					Logger::error() << __func__ << ":" << __LINE__ << " ServerBlock: duplicated error_pages"
+													<< std::endl;
+					throw std::runtime_error("duplicated error_pages");
+				}
 			}
 			break;
 		}
 		case SERV_LISTEN:
 		{
 			if (tokens.size() != 3)
-				throw std::runtime_error("invalied server block: listen");
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: listen: invalid number of directive arguments."
+												<< std::endl;
+				throw std::runtime_error("invalid number of directive arguments.");
+			}
 			std::stringstream buffer;
 			buffer.str(tokens[1]);
 			int ipAddress;
 			buffer >> ipAddress;
 			if (!buffer.eof())
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: configuration file not found" << std::endl;
 				throw std::runtime_error("invalied server block: listen");
+			}
 			serverConfig.listennedHost = ipAddress;
 
 			buffer.clear();
@@ -402,7 +554,11 @@ ServerConfig ServerBlock::toServerConfig()
 			buffer.str(tokens[2]);
 			buffer >> port;
 			if (!buffer.eof())
-				throw std::runtime_error("invalied server block: listen");
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " ServerBlock: port: format error"
+												<< std::endl;
+				throw std::runtime_error("format error: invaild integer string");
+			}
 			serverConfig.listennedPort = port;
 			break;
 		}
@@ -412,13 +568,18 @@ ServerConfig ServerBlock::toServerConfig()
 			int maxReqSize;
 			buffer >> maxReqSize;
 			if (!buffer.eof())
-				throw std::runtime_error("invalied server block: max_request_body_size");
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << "max_requst_body_size: format error"
+												<< std::endl;
+				throw std::runtime_error("format error: invaild integer string");
+			}
 			serverConfig.maxRequestBodySize = maxReqSize;
 			break;
 		}
 		default:
 			break;
 		}
+
 		for (std::map<std::string, LocationBlock>::iterator it = this->locationBlocks.begin();
 				 it != this->locationBlocks.end(); it++)
 		{
