@@ -54,7 +54,8 @@ struct LocationBlock
 		for (size_t i = 0; i < directives.size(); i++)
 		{
 			std::vector<std::string> tokens = ft_split(directives[i], ' ');
-			const std::string &directive = tokens.front();
+			// const std::string &directive = tokens.front();
+			const std::string &directive = tokens[0];
 			if (this->kindOf.find(directive) == this->kindOf.end())
 				throw std::runtime_error("invalid location block directive");
 			switch (this->kindOf[directive])
@@ -115,28 +116,27 @@ struct LocationBlock
 			{
 				if (tokens.size() != 3)
 					throw std::runtime_error("invalid location block: cgi_bin:");
-				if (tokens[1].front() != '.')
+				if (tokens[1][0] != '.')
+					// if (tokens[1].front() != '.')
 					throw std::runtime_error("invalid location block: cgi_bin:");
 				if (locationConfig.tableOfCgiBins.insert(std::make_pair(tokens[1], tokens[2])).second ==
 						false)
 					throw std::runtime_error("invalid location block: cgi_bin: duplicated");
 				break;
 			}
-			// case LOC_CGI_UPLOAD:
-			// {
-			// 	if (tokens.size() != 3)
-			// 		throw std::runtime_error("invalid location block: cgi_upload:");
-			// 	if (tokens[1].front() != '.')
-			// 		throw std::runtime_error("invalid location block: cgi_upload:");
-			// 	if (locationConfig.tableOfCgiBins.find(tokens[1]) ==
-			// 			locationConfig.tableOfCgiBins.end())
-			// 		throw std::runtime_error("invalid location block: cgi_upload:");
-			// 	if (locationConfig.tableOfCgiUploads.insert(std::make_pair(tokens[1], tokens[2])).second ==
-			// 			false)
-			// 		throw std::runtime_error("invalid location block: cgi_upload: duplicated");
-			// }
-			default:
-				break;
+			case LOC_CGI_UPLOAD:
+			{
+				if (tokens.size() != 3)
+					throw std::runtime_error("invalid location block: cgi_upload:");
+				if (tokens[1][0] != '.')
+					// if (tokens[1].front() != '.')
+					throw std::runtime_error("invalid location block: cgi_upload:");
+				if (locationConfig.tableOfCgiBins.find(tokens[1]) == locationConfig.tableOfCgiBins.end())
+					throw std::runtime_error("invalid location block: cgi_upload:");
+				if (locationConfig.tableOfCgiUploads.insert(std::make_pair(tokens[1], tokens[2])).second ==
+						false)
+					throw std::runtime_error("invalid location block: cgi_upload: duplicated");
+			}
 			}
 		}
 		return locationConfig;
@@ -175,7 +175,8 @@ struct ServerBlock
 		for (size_t i = 0; i < this->directives.size(); i++)
 		{
 			std::vector<std::string> tokens = ft_split(directives[i], ' ');
-			const std::string &directive = tokens.front();
+			// const std::string &directive = tokens.front();
+			const std::string &directive = tokens[0];
 			if (this->kindOf.find(directive) == this->kindOf.end())
 				throw std::runtime_error("invalid server block directive");
 			switch (this->kindOf[directive])
@@ -259,7 +260,7 @@ struct ConfigBlock : public ConfigContext
 	ServerBlock nextServerBlock;
 	int context;
 
-	ConfigBlock() : context(CONTEXT_NON), isInBlock(false) {}
+	ConfigBlock() : isInBlock(false), context(CONTEXT_NON) {}
 	Config toConfig()
 	{
 		Config config;
@@ -307,4 +308,4 @@ private:
 	ConfigParser &operator=(const ConfigParser &other);
 };
 
-#endif  // CONFIGPARSER_HPP
+#endif // CONFIGPARSER_HPP

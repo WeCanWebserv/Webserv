@@ -57,6 +57,8 @@ protected:
 	int receive(int fd);
 	int send(int fd, Response &response);
 
+	void registerResposneEvent(int eventFd, Response &res, std::pair<int, int> newEvent);
+
 private:
 	ServerManager();
 	ServerManager &operator=(const ServerManager &);

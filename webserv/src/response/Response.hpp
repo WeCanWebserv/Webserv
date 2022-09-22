@@ -80,7 +80,7 @@ private:
 	std::string timeInfoToString(std::tm *timeInfo, const std::string format) const;
 	std::string getCurrentTime() const;
 
-	friend Cgi;
+	friend class Cgi;
 };
 
 #endif // !RESPONSE_HPP

@@ -9,6 +9,27 @@ RequestManager::RequestManager() : parseStage(STAGE_STARTLINE), headerbufSize(0)
 	this->pushDummyRequest();
 }
 
+RequestManager::RequestManager(const RequestManager &other)
+		: parseStage(other.parseStage), headerbufSize(other.headerbufSize)
+{
+	*this = other;
+}
+
+RequestManager &RequestManager::operator=(const RequestManager &other)
+{
+	// stringstream 복사하기
+	this->buf.clear();
+	this->buf.str("");
+	this->buf << other.buf.str();
+
+	// headerbuf 복사하기
+	this->headerbuf = other.headerbuf;
+
+	// requestQueue 복사하기
+	this->requestQueue = other.requestQueue;
+	return *this;
+}
+
 RequestManager::~RequestManager()
 {
 	this->pruneAll();
@@ -127,7 +148,8 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			tmp.append(octets + octetOffset, octetSize - octetOffset);
 			this->buf << tmp;
 
-			Logger::debug(LOG_LINE) << "[ " << this->requestQueue.size() << "th ] request message is parsing...\n";
+			Logger::debug(LOG_LINE) << "[ " << this->requestQueue.size()
+															<< "th ] request message is parsing...\n";
 			Request &request = this->getLatestRequest();
 			std::string line;
 			while (this->parseStage != RequestManager::STAGE_BODY && std::getline(this->buf, line))

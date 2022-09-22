@@ -1,40 +1,26 @@
 #ifndef CONNECTION_HPP
 #define CONNECTION_HPP
 
+#include "request/request_manager.hpp"
 #include "response/Response.hpp"
-
-// class Request
-// {
-// public:
-// 	Request() {}
-// 	~Request() {}
-// 	bool ready()
-// 	{
-// 		return false;
-// 	}
-// };
 
 class Connection
 {
 private:
 	int serverFd;
-	Request request;
+	RequestManager requestManager;
 	Response response;
 
 public:
-	Connection() {}
-	Connection(int serverFd) : serverFd(serverFd) {}
+	Connection();
+	Connection(int serverFd);
 
-	Request &getRequest()
-	{
-		return this->request;
-	}
-	Response &getResponse()
-	{
-		return this->response;
-	}
+	void setServerFd(int serverFd);
+	int getServerFd() const;
+	RequestManager &getRequestManager();
+	Response &getResponse();
 
-	void clear() {}
+	void clear();
 };
 
 #endif // CONNECTION_HPP

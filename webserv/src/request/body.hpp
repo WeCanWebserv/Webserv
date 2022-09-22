@@ -5,6 +5,7 @@
 #include "header.hpp"
 #include "sstream"
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -12,7 +13,7 @@
 
 class RequestParser;
 
-struct Body
+class Body
 {
 public:
 	std::vector<char> payload;
@@ -28,6 +29,18 @@ public:
 	}
 
 	Body() : parseFlag(CHUNKED_LENGTH), lineLength(0) {}
+	Body(const Body &other)
+	{
+		*this = other;
+	}
+
+	Body &operator=(const Body &other)
+	{
+		this->payload = other.payload;
+		this->multipartFormData = other.multipartFormData;
+
+		return (*this);
+	}
 
 private:
 	enum ParseFlag

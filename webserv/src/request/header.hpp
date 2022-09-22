@@ -1,12 +1,14 @@
 #ifndef __FT_HEADER_H__
 #define __FT_HEADER_H__
 
+#include "field_value.hpp"
 #include <algorithm>
 #include <map>
+// #include <sstream>
+#include <algorithm>
 #include <string>
 #include <vector>
 
-#include "field_value.hpp"
 #include "../Logger.hpp"
 
 #if DEBUG
@@ -19,7 +21,7 @@
 template<typename T>
 struct True : std::binary_function<T, T, T>
 {
-	bool operator()(const T &a, const T &b) const
+	bool operator()(const T &, const T &) const
 	{
 		return true;
 	}
@@ -35,7 +37,8 @@ struct Header
 	 * };
 	*/
 	typedef std::map<std::string, std::string> DescriptionMap;
-	typedef std::map<std::string, std::vector<FieldValue>, True<std::string> > HeaderMap;
+	typedef std::map<std::string, std::vector<FieldValue> > HeaderMap;
+	// typedef std::map<std::string, std::vector<FieldValue>, True<std::string> > HeaderMap;
 
 private:
 	HeaderMap headerMap;
@@ -109,6 +112,17 @@ public:
 		// 		}
 		// 		std::cout << "\n";
 		// #endif
+	}
+
+	Header(const Header &other)
+	{
+		*this = other;
+	}
+
+	Header &operator=(const Header &other)
+	{
+		this->headerMap = other.headerMap;
+		return (*this);
 	}
 
 	const HeaderMap &getFields(void) const
@@ -194,19 +208,19 @@ public:
 			str.append(it->first + "]\n");
 			for (size_t i = 0; i < it->second.size(); i++)
 			{
-				char tmp[1] = {i + '0'};
+				// char tmp[1] = {i + '0'};
 				str.append("\tvalue[");
-				str.append(tmp, 1);
+				// str.append(tmp, 1);
 				str.append("]: ");
 				str.append((it->second)[i].value + "\n");
-				size_t j = 0;
+				// size_t j = 0;
 				for (std::map<std::string, std::string>::iterator descit =
 								 (it->second)[i].descriptions.begin();
 						 descit != (it->second)[i].descriptions.end(); descit++)
 				{
-					char tmp2[1] = {j++ + '0'};
+					// char tmp2[1] = {j++ + '0'};
 					str.append("\t- description[");
-					str.append(tmp2, 1);
+					// str.append(tmp2, 1);
 					str.append("]: ");
 					str.append(descit->first + " = " + descit->second + "\n");
 				}

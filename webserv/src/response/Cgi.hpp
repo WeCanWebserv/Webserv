@@ -26,6 +26,8 @@ public:
 
 	bool fail();
 
+	void clear();
+
 	int run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd);
 	char **generateMetaVariables(Request &req,
 															 const ServerConfig &config,

@@ -118,7 +118,8 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 		{
 			std::string uri;
 			std::getline(lineBuffer, uri, ' ');
-			if (uri.empty() || uri.front() != '/')
+			// if (uri.empty() || uri.front() != '/')
+			if (uri.empty() || uri[0] != '/')
 				throw std::runtime_error("syntax wrong: context location");
 
 			std::map<std::string, LocationBlock> &locationBlocks = serverBlock.locationBlocks;
@@ -130,7 +131,7 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 		}
 		else
 		{
-			if (line.back() != ';')
+			if (line[line.length() - 1] != ';')
 				throw std::runtime_error("syntax wrong: context location");
 
 			serverBlock.directives.push_back(line.substr(0, line.length() - 1));
@@ -171,7 +172,7 @@ void ConfigParser::handleLineInLocationBlock(ConfigBlock &configBlock, std::stri
 		if (!locationBlock.isInBlock)
 			throw std::runtime_error("syntax wrong: context location");
 
-		if (line.back() != ';')
+		if (line[line.length() - 1] != ';')
 			throw std::runtime_error("syntax wrong: context location");
 
 		locationBlock.directives.push_back(line.substr(0, line.length() - 1));
@@ -188,7 +189,7 @@ void ConfigParser::handleLineInNoContext(ConfigBlock &configBlock, std::string &
 
 	if (token == "server")
 		configBlock.context = CONTEXT_SERVER;
-	else if (line.back() != ';')
+	else if (line[line.length() - 1] != ';')
 		throw std::runtime_error("syntax wrong: context non");
 	else
 		configBlock.directives.push_back(line.substr(0, line.length() - 1));
@@ -206,7 +207,7 @@ void ConfigParser::populate()
 	this->reconstructBufferToLines(lines, configBuffer);
 
 	ConfigBlock configBlock;
-	for (int i = 0; i < lines.size(); i++)
+	for (size_t i = 0; i < lines.size(); i++)
 	{
 		// TOOD
 		std::string &line = lines[i];

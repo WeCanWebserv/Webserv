@@ -1,11 +1,14 @@
 #include "Response.hpp"
-#include "../request/body.hpp"
+#include "../libft.hpp"
+#include "../request/request.hpp"
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
 #include "../libft.hpp"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #include <ctime>
 #include <utility>
 #include <vector>
@@ -52,7 +55,9 @@ void Response::clear()
 	clearBody(this->body);
 
 	this->header.clear();
+	this->cgi.clear();
 
+	this->statusCode = 200;
 	this->isReady = false;
 }
 
@@ -87,15 +92,24 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	std::string targetPath = uriParser.getPath();
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
+	if (req.getStartline().httpVersion == "HTTP/1.0")
+		this->isClose = true;
+
 	locIter = findLocation(targetPath, config.tableOfLocations);
 	if (locIter == config.tableOfLocations.end())
+	{
+		Logger::info() << "Response::process: not found location block" << std::endl;
 		throw(404);
+	}
 
 	const std::string &locPath = (*locIter).first;
 	const LocationConfig &location = (*locIter).second;
 
 	if (location.allowedMethods.find(req.getStartline().method) == location.allowedMethods.end())
+	{
+		Logger::info() << "Response::process: not allowed method" << std::endl;
 		throw(405);
+	}
 
 	if (location.isRedirectionSet)
 	{
@@ -120,16 +134,25 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 			index = searchIndexFile(files, location.indexFiles);
 			if (index.size() == 0)
+			{
+				Logger::info() << "Response::process: uri is directory and not found index file"
+											 << std::endl;
 				throw(404);
+			}
 			targetPath += index;
 		}
 	}
 
 	if (location.tableOfCgiBins.find(uriParser.getExtension()) != location.tableOfCgiBins.end())
 	{
-		cgi.run(req, config, location, clientFd);
+		if (cgi.run(req, config, location, clientFd))
+		{
+			Logger::error() << "Cgi::run: " << std::strerror(errno) << std::endl;
+			throw(500);
+		}
 		if (cgi.fail())
 			throw(503);
+
 		if (req.getBody().payload.size())
 		{
 			this->buffer = ::Body::vecToStr(req.getBody().payload);
@@ -143,9 +166,14 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
+	Logger::debug(LOG_LINE) << "serve '" << targetPath << "'" << std::endl;
 	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
 	if (this->body.fd == -1)
+	{
+		Logger::info() << "Response::process: open(" << targetPath << "): " << std::strerror(errno)
+									 << std::endl;
 		throw(404);
+	}
 	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
 	return (std::make_pair(this->body.fd, EPOLLIN));
 }
@@ -157,12 +185,7 @@ std::pair<int, int> Response::process(int errorCode, const ServerConfig &config,
 	clear();
 
 	this->statusCode = errorCode;
-
-	if (close)
-	{
-		this->isClose = close;
-		setHeader("Connection", "close");
-	}
+	this->isClose |= close;
 
 	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
@@ -186,7 +209,10 @@ int Response::readBody()
 
 	n = read(this->body.fd, buf, bufSize - 1);
 	if (n == -1)
+	{
+		Logger::error() << "Response::readBody: read: " << std::strerror(errno) << std::endl;
 		return (-1);
+	}
 	else if (n == 0)
 	{
 		if (cgi)
@@ -210,7 +236,10 @@ int Response::writeBody()
 
 	n = write(this->cgi.fd[1], getBuffer(), getBufSize());
 	if (n == -1)
+	{
+		Logger::error() << "Response::writeBody: write: " << std::strerror(errno) << std::endl;
 		return (-1);
+	}
 	else if (n == 0)
 	{
 		clearBuffer();
@@ -260,6 +289,12 @@ void Response::setBuffer()
 
 	tmp << "Server: " << SERVER_NAME << CRLF;
 	tmp << "Date: " << getCurrentTime() << CRLF;
+
+	if (isClose)
+		setHeader("Connection", "close");
+	else
+		setHeader("Connection", "keep-alive");
+
 	for (headerType::const_iterator it = this->header.begin(), ite = this->header.end(); it != ite;
 			 ++it)
 	{
@@ -379,6 +414,8 @@ std::vector<std::string> Response::readDirectory(const std::string &path)
 		}
 		closedir(dir);
 	}
+	else
+		Logger::error() << "Response::readDirectory: opendir: " << std::strerror(errno) << std::endl;
 	return (files);
 }
 

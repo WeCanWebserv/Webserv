@@ -32,6 +32,8 @@ private:
 
 public:
 	RequestManager();
+	RequestManager(const RequestManager &other);
+	RequestManager &operator=(const RequestManager &other);
 	~RequestManager();
 	int fillBuffer(const char *octets, size_t len); // return status code
 	bool isReady(); // request message가 1개 이상 parsing이 완료
