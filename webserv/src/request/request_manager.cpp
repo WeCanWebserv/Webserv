@@ -203,6 +203,8 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 				Logger::debug(LOG_LINE) << this->requestQueue.size()
 																<< "th request message parsing is just completed\n";
 				octetOffset = octetSize - remainedCount;
+				if (request.getBody().payload.size() > maxBodySize)
+					throw (413);
 				this->prepareNextRequest();
 			}
 			if (remainedCount <= 0) // 남았을 경우에만 continue, 아니면 break한다.
