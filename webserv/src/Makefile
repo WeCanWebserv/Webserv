@@ -3,7 +3,7 @@ all: webserv
 
 .PHONY: webserv
 webserv:
-	c++ *.cpp **/*.cpp -g -o webserv
+	c++ *.cpp **/*.cpp -g -o webserv -I.
 
 .PHONY: clean
 clean:

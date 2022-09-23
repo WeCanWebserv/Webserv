@@ -1,7 +1,8 @@
 #include "ConfigParser.hpp"
 
 #include <errno.h>
-q
+#include <string.h>
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -11,6 +12,7 @@ q
 #include <string>
 #include <vector>
 
+#include "Logger.hpp"
 #include "libft.hpp"
 
 //
@@ -23,7 +25,7 @@ ConfigParser::ConfigParser(const char *path) : configFile(path)
 {
 	if (!this->configFile)
 	{
-		Logger::error() << __func__ << ":" << __LINE__ " configuration file not found" << std::endl;
+		Logger::error() << __func__ << ":" << __LINE__ << " configuration file not found" << std::endl;
 		throw std::runtime_error(strerror(ENOENT));
 	}
 	this->populate();
@@ -139,7 +141,7 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 			std::getline(lineBuffer, uri, ' ');
 			if (uri.empty() || uri[0] != '/')
 			{
-				Logger::error() << __func__ << ":" << __LINE__ < < < < std::endl;
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invalid path" << std::endl;
 				throw std::runtime_error("syntax wrong: context location");
 			}
 
@@ -286,7 +288,7 @@ LocationBlock::LocationBlock() : isInBlock(false)
 	kindOf["return"] = LOC_REDIRECTION;
 	kindOf["allowed_methods"] = LOC_ALLOWED_METHODS;
 	kindOf["cgi_bin"] = LOC_CGI_BIN;
-	kindOf["cgi_upload"] = LOC_CGI_UPLOAD;
+	// kindOf["cgi_upload"] = LOC_CGI_UPLOAD;
 
 	availableMethods.insert(std::string("GET"));
 	availableMethods.insert(std::string("POST"));
@@ -426,35 +428,6 @@ LocationConfig LocationBlock::toLocationConfig()
 			}
 			break;
 		}
-		case LOC_CGI_UPLOAD:
-		{
-			if (tokens.size() != 3)
-			{
-				Logger::error() << __func__ << ":" << __LINE__
-												<< " LocationBlock: index: invalid number of directive arguments."
-												<< std::endl;
-				throw std::runtime_error("invalid number of directive arguments.");
-			}
-			if (tokens[1][0] != '.')
-			{
-				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invaild cgi-extension"
-												<< std::endl;
-				throw std::runtime_error("invalid cgi-extension");
-			}
-			if (locationConfig.tableOfCgiBins.find(tokens[1]) == locationConfig.tableOfCgiBins.end())
-			{
-				Logger::error() << __func__ << ":" << __LINE__
-												<< " LocationBlock: cgi_upload-extension not found in cgi_bin" << std::endl;
-				throw std::runtime_error("cgi_upload-extension not found in cgi_bin");
-			}
-			if (locationConfig.tableOfCgiUploads.insert(std::make_pair(tokens[1], tokens[2])).second ==
-					false)
-			{
-				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: duplicated cgi_uploads"
-												<< std::endl;
-				throw std::runtime_error("duplicated cgi_uploads");
-			}
-		}
 		}
 	}
 	return locationConfig;
@@ -480,7 +453,7 @@ ServerConfig ServerBlock::toServerConfig()
 		const std::string &directive = tokens[0];
 		if (this->kindOf.find(directive) == this->kindOf.end())
 		{
-			Logger::error() << __func__ << ":" << __LINE__ " ServerBlock: invalid directive" << std::endl;
+			Logger::error() << __func__ << ":" << __LINE__ << " ServerBlock: invalid directive" << std::endl;
 			throw std::runtime_error("invalid directive");
 		}
 		switch (this->kindOf[directive])
@@ -538,16 +511,16 @@ ServerConfig ServerBlock::toServerConfig()
 				throw std::runtime_error("invalid number of directive arguments.");
 			}
 			std::stringstream buffer;
-			buffer.str(tokens[1]);
-			int ipAddress;
-			buffer >> ipAddress;
-			if (!buffer.eof())
-			{
-				Logger::error() << __func__ << ":" << __LINE__
-												<< " ServerBlock: configuration file not found" << std::endl;
-				throw std::runtime_error("invalied server block: listen");
-			}
-			serverConfig.listennedHost = ipAddress;
+			// buffer.str(tokens[1]);
+			// int ipAddress;
+			// buffer >> ipAddress;
+			// if (!buffer.eof())
+			// {
+			// 	Logger::error() << __func__ << ":" << __LINE__
+			// 									<< " ServerBlock: configuration file not found" << std::endl;
+			// 	throw std::runtime_error("invalied server block: listen");
+			// }
+			serverConfig.listennedHost = tokens[1];
 
 			buffer.clear();
 			int port;
@@ -559,7 +532,7 @@ ServerConfig ServerBlock::toServerConfig()
 												<< std::endl;
 				throw std::runtime_error("format error: invaild integer string");
 			}
-			serverConfig.listennedPort = port;
+			serverConfig.listennedPort = tokens[2];
 			break;
 		}
 		case SERV_MAX_REQUEST_BODY_SIZE:
