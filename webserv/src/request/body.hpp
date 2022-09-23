@@ -3,6 +3,7 @@
 
 #include "field_value.hpp"
 #include "header.hpp"
+#include "sstream"
 #include <map>
 #include <sstream>
 #include <string>

@@ -1,7 +1,9 @@
 #include "ServerManager.hpp"
 
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -39,13 +41,17 @@ ServerManager::ServerManager(const char *path)
 		if (socketFd == -1)
 			throw std::runtime_error("socket");
 		else
+		{
 			this->fdInUse.insert(socketFd);
+			int optVal = 1;
+			setsockopt(socketFd, SOL_SOCKET, SO_REUSEPORT, (void *)&optVal, (socklen_t)sizeof(optVal));
+		}
 
 		ServerConfig serverConfig = serverConfigs[idx];
-		sockAddr.sin_addr.s_addr = htonl(serverConfig.listennedHost);
-		sockAddr.sin_port = htons(serverConfig.listennedPort);
-		Logger::debug(LOG_LINE) << "host: " << htonl(serverConfig.listennedHost)
-														<< ", port: " << htons(serverConfig.listennedPort) << std::endl;
+		sockAddr.sin_addr.s_addr = inet_addr(serverConfig.listennedHost.c_str());
+		sockAddr.sin_port = htons(atoi(serverConfig.listennedPort.c_str()));
+		Logger::debug(LOG_LINE) << "host: " << serverConfig.listennedHost
+														<< ", port: " << atoi(serverConfig.listennedPort.c_str()) << std::endl;
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
