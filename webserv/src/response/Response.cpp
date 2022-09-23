@@ -4,6 +4,7 @@
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
 #include "UriParser.hpp"
+#include "../libft.hpp"
 
 #include <algorithm>
 #include <cerrno>
