@@ -141,7 +141,8 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 			std::getline(lineBuffer, uri, ' ');
 			if (uri.empty() || uri[0] != '/')
 			{
-				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invalid path" << std::endl;
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: invalid path"
+												<< std::endl;
 				throw std::runtime_error("syntax wrong: context location");
 			}
 
@@ -160,8 +161,9 @@ void ConfigParser::handleLineInServerBlock(ConfigBlock &configBlock, std::string
 		{
 			if (line[line.length() - 1] != ';')
 			{
-				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: " << std::endl;
-				throw std::runtime_error("syntax wrong: context location");
+				Logger::error() << __func__ << ":" << __LINE__
+												<< "syntax error: linebreak ';' not found in directives" << std::endl;
+				throw std::runtime_error("syntax error: ';' not found in directives");
 			}
 
 			serverBlock.directives.push_back(line.substr(0, line.length() - 1));
@@ -298,6 +300,9 @@ LocationBlock::LocationBlock() : isInBlock(false)
 LocationConfig LocationBlock::toLocationConfig()
 {
 	LocationConfig locationConfig;
+	bool isAutoIndexInitialized = false;
+
+	locationConfig.isRedirectionSet = false;
 	for (size_t i = 0; i < directives.size(); i++)
 	{
 		std::vector<std::string> tokens = ft_split(directives[i], ' ');
@@ -312,6 +317,12 @@ LocationConfig LocationBlock::toLocationConfig()
 		{
 		case LOC_ROOT:
 		{
+			if (!locationConfig.root.empty())
+			{
+				Logger::error() << __func__ << ":" << __LINE__ << " LocationBlock: root already initialized"
+												<< std::endl;
+				throw std::runtime_error("root already initialized");
+			}
 			if (tokens.size() != 2)
 			{
 				Logger::error() << __func__ << ":" << __LINE__
@@ -344,6 +355,12 @@ LocationConfig LocationBlock::toLocationConfig()
 		}
 		case LOC_AUTOINDEX:
 		{
+			if (isAutoIndexInitialized)
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: autoindex already initialized" << std::endl;
+				throw std::runtime_error("autoindex already initialized");
+			}
 			if (tokens.size() != 2 || (tokens[1] != "on" && tokens[1] != "off"))
 			{
 				Logger::error() << __func__ << ":" << __LINE__
@@ -351,10 +368,18 @@ LocationConfig LocationBlock::toLocationConfig()
 				throw std::runtime_error("invalid directive arguments");
 			}
 			locationConfig.isAutoIndexOn = tokens[1] == "on" ? true : false;
+			isAutoIndexInitialized = true;
 			break;
 		}
 		case LOC_REDIRECTION:
 		{
+			if (locationConfig.isRedirectionSet)
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " LocationBlock: return: redirection data already initialized"
+												<< std::endl;
+				throw std::runtime_error("redirection data already initialized");
+			}
 			if (tokens.size() < 2 || tokens.size() > 3)
 			{
 				Logger::error() << __func__ << ":" << __LINE__
@@ -430,6 +455,10 @@ LocationConfig LocationBlock::toLocationConfig()
 		}
 		}
 	}
+
+	if (locationConfig.allowedMethods.empty())
+		locationConfig.allowedMethods.insert("GET");
+
 	return locationConfig;
 }
 
@@ -447,13 +476,16 @@ ServerBlock::ServerBlock() : isInBlock(false)
 ServerConfig ServerBlock::toServerConfig()
 {
 	ServerConfig serverConfig;
+	bool isBodySizeInitialized = false;
+
 	for (size_t i = 0; i < this->directives.size(); i++)
 	{
 		std::vector<std::string> tokens = ft_split(directives[i], ' ');
 		const std::string &directive = tokens[0];
 		if (this->kindOf.find(directive) == this->kindOf.end())
 		{
-			Logger::error() << __func__ << ":" << __LINE__ << " ServerBlock: invalid directive" << std::endl;
+			Logger::error() << __func__ << ":" << __LINE__ << " ServerBlock: invalid directive"
+											<< std::endl;
 			throw std::runtime_error("invalid directive");
 		}
 		switch (this->kindOf[directive])
@@ -503,6 +535,12 @@ ServerConfig ServerBlock::toServerConfig()
 		}
 		case SERV_LISTEN:
 		{
+			if (!serverConfig.listennedHost.empty() || !serverConfig.listennedPort.empty())
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: listenned host and port already initialized" << std::endl;
+				throw std::runtime_error("listenned host and port already initialized");
+			}
 			if (tokens.size() != 3)
 			{
 				Logger::error() << __func__ << ":" << __LINE__
@@ -537,6 +575,12 @@ ServerConfig ServerBlock::toServerConfig()
 		}
 		case SERV_MAX_REQUEST_BODY_SIZE:
 		{
+			if (isBodySizeInitialized)
+			{
+				Logger::error() << __func__ << ":" << __LINE__
+												<< " ServerBlock: max_request_body_size already initialized" << std::endl;
+				throw std::runtime_error("max_request_body_size already initialized");
+			}
 			std::stringstream buffer(tokens[1]);
 			int maxReqSize;
 			buffer >> maxReqSize;
@@ -547,6 +591,7 @@ ServerConfig ServerBlock::toServerConfig()
 				throw std::runtime_error("format error: invaild integer string");
 			}
 			serverConfig.maxRequestBodySize = maxReqSize;
+			isBodySizeInitialized = true;
 			break;
 		}
 		default:

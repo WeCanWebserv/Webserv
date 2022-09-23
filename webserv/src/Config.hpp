@@ -18,7 +18,9 @@ struct LocationConfig
 	std::pair<int, std::string> redirectionSetting;
 	std::set<std::string> allowedMethods;
 	bool isAutoIndexOn;
-	bool isRedirectionSet;  // 'return' 지시어 중복 방지
+	bool isRedirectionSet; // 'return' 지시어 중복 방지
+
+	LocationConfig();
 };
 // Example 1:
 // location /download {
@@ -35,15 +37,16 @@ struct LocationConfig
 //     return 301 /usr/upload;
 // }
 
-
 struct ServerConfig
 {
 	std::vector<std::string> listOfServerNames;
 	std::map<int, std::string> tableOfErrorPages;
 	std::map<std::string, LocationConfig> tableOfLocations;
-  	std::string listennedHost;
+	std::string listennedHost;
 	std::string listennedPort;
 	int maxRequestBodySize;
+
+	ServerConfig();
 };
 // Example 1:
 // server {
@@ -56,7 +59,7 @@ struct ServerConfig
 //     location {...} {
 //        {...}
 //     }
-// 
+//
 //     max_request_body_size 10240;
 //     error_page 500 502 503 504  /50x.html;
 // }
