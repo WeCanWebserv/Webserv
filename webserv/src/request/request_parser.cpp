@@ -316,12 +316,16 @@ bool RequestParser::validateHeaderField(Header &header, size_t maxBodySize)
 		// TODO: Validation 마저 하기
 		if (it->first == tolowerStr(CONTENT_LENGTH))
 		{
-			std::stringstream tmp(it->first);
+			std::stringstream tmp(it->second[0].value);
 			size_t x = 0;
 			tmp >> x;
 			if (x > maxBodySize)
-				return false;
-			//check isdigit
+			{
+				Logger::debug(LOG_LINE) << "Payload is Too Long\n";
+				Logger::debug(LOG_LINE) << "maxBodySize: " << maxBodySize << ", content-length size: " << x << "\n";
+				throw(413);
+			} // payload too long
+				//check isdigit
 		}
 		else if (it->first == tolowerStr("connection"))
 		{
