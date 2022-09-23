@@ -24,7 +24,7 @@ void RequestParser::startlineParser(Startline &startline, const std::string &lin
 	startlineTokenSet = splitStr(line, " ");
 	if (startlineTokenSet.size() != 3)
 	{
-		Logger::debug(LOG_LINE) << "Startline token count is not 3\n";
+		Logger::error() << "Startline token count is not 3\n";
 		throw(400);
 	}
 
@@ -54,7 +54,7 @@ void RequestParser::startlineMethodParser(std::string &method, const std::string
 	 */
 	if ((idx = findToken(token, RequestParser::methodTokenSet)) < 0)
 	{
-		Logger::debug(LOG_LINE) << "No match method in Method Tokens\n";
+		Logger::error() << "No match method in Method Tokens\n";
 		throw(400);
 	}
 	method = RequestParser::methodTokenSet[idx];
@@ -81,7 +81,7 @@ void RequestParser::startlineURIParser(std::string &uri,
 	result = result || RequestParser::checkURIAsteriskForm(uri, token, method);
 	if (!result)
 	{
-		Logger::debug(LOG_LINE) << "No matched uri form\n";
+		Logger::error() << "No matched uri form\n";
 		throw(400);
 	}
 }
@@ -153,13 +153,13 @@ void RequestParser::startlineHTTPVersionParser(std::string &httpVersion, const s
 	tokenset = splitStr(token, "/");
 	if (tokenset[0].compare("HTTP"))
 	{
-		Logger::debug(LOG_LINE) << "Protocol is not HTTP\n";
+		Logger::error() << "Protocol is not HTTP\n";
 		throw(400);
 	}
 	versionTokenSet = splitStr(versionList, ", ");
 	if ((idx = findToken(tokenset[1], versionTokenSet)) < 0)
 	{
-		Logger::debug(LOG_LINE) << "Protocol version is not valid\n";
+		Logger::error() << "Protocol version is not valid\n";
 		throw(400);
 	}
 	httpVersion = tokenset[1];
@@ -178,19 +178,19 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 	Logger::debug(LOG_LINE) << "header line [" << ss.str() << "] : " << line << "\n";
 	if (headerbufSize + line.length() + 1 > RequestParser::maxHeaderSize)
 	{
-		Logger::debug(LOG_LINE) << "Header secion size is too long\n";
+		Logger::error() << "Header secion size is too long\n";
 		throw(431); // rfc6585.5
 	}
 	headerToken = trimStr(const_cast<std::string &>(line), "\r\n");
 	tmp = splitStr(headerToken, ":");
 	if (tmp.size() < 2 || RequestParser::checkHeaderFieldnameHasSpace(tmp[0]))
 	{
-		Logger::debug(LOG_LINE) << "Header field has space || Header field does not have field-value";
+		Logger::error() << "Header field has space || Header field does not have field-value";
 		throw(400);
 	}
 	if (tmp[0].length() > RequestParser::maxHeaderFieldSize)
 	{
-		Logger::debug(LOG_LINE) << "Header field-name is too long\n";
+		Logger::error() << "Header field-name is too long\n";
 		throw(431);
 	}
 	tmp[0] = tolowerStr(tmp[0].c_str());
@@ -217,7 +217,7 @@ void RequestParser::headerParser(Header &header,
 
 	if (!RequestParser::checkHeaderFieldContain(headerbuf, "Host"))
 	{
-		Logger::debug(LOG_LINE) << "Header Section does not contain 'Host' field\n";
+		Logger::error() << "Header Section does not contain 'Host' field\n";
 		throw(400);
 	}
 	if (RequestParser::checkHeaderFieldContain(headerbuf, TRANSFER_ENCODING) &&
@@ -232,7 +232,7 @@ void RequestParser::headerParser(Header &header,
 		{
 			if (!(method == "GET" || method == "HEAD"))
 			{
-				Logger::debug(LOG_LINE) << "Length is required\n";
+				Logger::error() << "Length is required\n";
 				throw(411); // length required error
 			}
 		}
@@ -247,7 +247,7 @@ void RequestParser::headerParser(Header &header,
 	}
 	if (!RequestParser::validateHeaderField(header, maxBodySize))
 	{
-		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format\n";
+		Logger::error() << "Some Header does not have valid token or format\n";
 		throw(400);
 	}
 	header.print();
@@ -316,11 +316,15 @@ bool RequestParser::validateHeaderField(Header &header, size_t maxBodySize)
 		// TODO: Validation 마저 하기
 		if (it->first == tolowerStr(CONTENT_LENGTH))
 		{
-			std::stringstream tmp(it->first);
+			std::stringstream tmp(it->second[0].value);
 			size_t x = 0;
 			tmp >> x;
 			if (x > maxBodySize)
-				return false;
+			{
+				Logger::error() << "Payload is Too Long\n";
+				Logger::error() << "maxBodySize: " << maxBodySize << ", content-length size: " << x << "\n";
+				throw(413);
+			}
 			//check isdigit
 		}
 		else if (it->first == tolowerStr("connection"))
@@ -390,7 +394,7 @@ void RequestParser::postBodyParser(Body &body, Header &header, size_t maxBodySiz
 	boundary = fieldvalue.descriptions.find("boundary");
 	if (boundary == fieldvalue.descriptions.end())
 	{
-		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body\n";
+		Logger::error() << "boundary is required in multipart/form-data body\n";
 		throw(400);
 	}
 	RequestParser::parseMultipartBody(body, boundary->second, maxBodySize);
@@ -420,7 +424,7 @@ void RequestParser::parseMultipartEachBody(Body &body,
 	sectionSet = splitStrStrict(eachBody, "\r\n\r\n", 4);
 	if (sectionSet.size() > 2)
 	{
-		Logger::debug(LOG_LINE)
+		Logger::error()
 				<< "Multipart format body does not have header-body pair || section delimiter is invalid\n";
 		throw(400);
 	}
@@ -521,7 +525,7 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 		{
 			if (lineBuffer[lineBuffer.size() - 1] != '\r') // 그 전 read할 때 딱 \r까지만 읽었을 경우
 			{
-				Logger::debug(LOG_LINE) << "Chunked body does not end with '\\r\\n'\n";
+				Logger::error() << "Chunked body does not end with '\\r\\n'\n";
 				throw(400);
 			}
 			lineBuffer.pop_back();
@@ -533,7 +537,7 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 		}
 		if ((!::isxdigit(bodyOctets[i]) && bodyOctets[i] != '\r') || (bodyOctets[i] == '\r' && crFlag))
 		{
-			Logger::debug(LOG_LINE) << "Length in chunked body does not hexadecimal number\n";
+			Logger::error() << "Length in chunked body does not hexadecimal number\n";
 			throw(400);
 		}
 		lineBuffer.push_back(bodyOctets[i]);

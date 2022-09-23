@@ -36,7 +36,8 @@ RequestManager::~RequestManager()
 	this->pruneAll();
 }
 
-void RequestManager::setMaxBodySize(size_t maxBodySize) {
+void RequestManager::setMaxBodySize(size_t maxBodySize)
+{
 	this->maxBodySize = maxBodySize;
 }
 
@@ -63,7 +64,7 @@ void RequestManager::pruneBuffer(void)
 void RequestManager::pruneAll(void)
 {
 	this->pruneBuffer();
-	Logger::debug(LOG_LINE) << "prune All is Called\n";
+	Logger::error() << "prune All is Called\n";
 	while (!this->requestQueue.empty())
 	{
 		this->requestQueue.pop();
@@ -153,8 +154,8 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			tmp.append(octets + octetOffset, octetSize - octetOffset);
 			this->buf << tmp;
 
-			Logger::debug(LOG_LINE) << "[ " << this->requestQueue.size()
-															<< "th ] request message is parsing...\n";
+			Logger::error() << "[ " << this->requestQueue.size()
+											<< "th ] request message is parsing...\n";
 			Request &request = this->getLatestRequest();
 			std::string line;
 			while (this->parseStage != RequestManager::STAGE_BODY && std::getline(this->buf, line))
@@ -204,11 +205,11 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 							 RequestParser::bodyParser(request.getBody(), bodyOctets, request.getHeader())) >= 0)
 			{
 				RequestParser::postBodyParser(request.getBody(), request.getHeader(), this->maxBodySize);
-				Logger::debug(LOG_LINE) << this->requestQueue.size()
-																<< "th request message parsing is just completed\n";
+				Logger::error() << this->requestQueue.size()
+												<< "th request message parsing is just completed\n";
 				octetOffset = octetSize - remainedCount;
 				if (request.getBody().payload.size() > maxBodySize)
-					throw (413);
+					throw(413);
 				this->prepareNextRequest();
 			}
 			if (remainedCount <= 0) // 남았을 경우에만 continue, 아니면 break한다.
@@ -217,7 +218,7 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 	}
 	catch (int code)
 	{
-		Logger::debug(LOG_LINE) << "Error code: " << code << "\n";
+		Logger::error() << "Error code: " << code << "\n";
 		this->pruneAll();
 		return code;
 	}

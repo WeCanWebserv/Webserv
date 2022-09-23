@@ -25,6 +25,7 @@ SRCS					=		$(REQUEST_SRCS) \
 									$(RESPONSE_SRCS) \
 									$(addprefix $(DEFAULT_DIR)/, \
 											ConfigParser.cpp \
+											Config.cpp \
 											Connection.cpp \
 											Logger.cpp \
 											ServerManager.cpp \
