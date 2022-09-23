@@ -14,12 +14,12 @@ public:
 	static void startlineParser(Startline &startline, const std::string &str);
 	static void headerParser(Header &header,
 													 std::map<std::string, std::string> &headerbuf,
-													 const std::string &method);
+													 const std::string &method, size_t maxBodySize);
 	static void fillHeaderBuffer(std::map<std::string, std::string> &headerbuf,
 															 const std::string &str,
 															 const size_t headerbufSize);
 	static ssize_t bodyParser(Body &body, std::vector<char> &bodyOctets, Header &header);
-	static void postBodyParser(Body &body, Header &header);
+	static void postBodyParser(Body &body, Header &header, size_t maxBodySize);
 
 private:
 	static std::vector<std::string> methodTokenSet;
@@ -46,7 +46,7 @@ private:
 	headerValueParser(std::vector<FieldValue> &fieldvalue, const std::string &headerValue);
 	static void headerValueDescriptionParser(std::map<std::string, std::string> &descriptions,
 																					 std::vector<std::string> &descriptionsTokenSet);
-	static bool validateHeaderField(Header &header);
+	static bool validateHeaderField(Header &header, size_t maxBodySize);
 	/**
 	 * body parser util
 	 */
@@ -58,11 +58,11 @@ private:
 																				 std::vector<char> &bodyOctets,
 																				 std::vector<char> &lineBuffer,
 																				 ssize_t lineLength);
-	static void parseMultipartBody(Body &body, const std::string &boundary);
-	static void parseMultipartEachBody(Body &body, const std::string &eachBody);
+	static void parseMultipartBody(Body &body, const std::string &boundary, size_t maxBodySize);
+	static void parseMultipartEachBody(Body &body, const std::string &eachBody, size_t maxBodySize);
 	static void parseMultipartEachHeader(Body &body,
 																			 const std::string &headerSection,
-																			 const std::string &bodySection);
+																			 const std::string &bodySection, size_t maxBodySize);
 
 	/**
 	 * uri parser util

@@ -209,7 +209,8 @@ void RequestParser::fillHeaderBuffer(std::map<std::string, std::string> &headerb
 
 void RequestParser::headerParser(Header &header,
 																 std::map<std::string, std::string> &headerbuf,
-																 const std::string &method)
+																 const std::string &method,
+																 size_t maxBodySize)
 {
 	Logger::debug(LOG_LINE) << "Header section is done\n";
 	std::vector<FieldValue> fieldvalueVec;
@@ -244,7 +245,7 @@ void RequestParser::headerParser(Header &header,
 		header.insertField(std::make_pair(it->first, fieldvalueVec));
 		fieldvalueVec.clear();
 	}
-	if (!RequestParser::validateHeaderField(header))
+	if (!RequestParser::validateHeaderField(header, maxBodySize))
 	{
 		Logger::debug(LOG_LINE) << "Some Header does not have valid token or format\n";
 		throw(400);
@@ -299,7 +300,7 @@ void RequestParser::headerValueDescriptionParser(std::map<std::string, std::stri
 	}
 }
 
-bool RequestParser::validateHeaderField(Header &header)
+bool RequestParser::validateHeaderField(Header &header, size_t maxBodySize)
 {
 	/**
 	 * 값이 여러개일 때, 모두 같은 값이 와야 하는 필드: content-length, host, connection, User-Agent, Date
@@ -315,6 +316,11 @@ bool RequestParser::validateHeaderField(Header &header)
 		// TODO: Validation 마저 하기
 		if (it->first == tolowerStr(CONTENT_LENGTH))
 		{
+			std::stringstream tmp(it->first);
+			int x = 0;
+			tmp >> x;
+			if (x > maxBodySize)
+				return false;
 			//check isdigit
 		}
 		else if (it->first == tolowerStr("connection"))
@@ -370,7 +376,7 @@ ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Hea
 	return (0);
 }
 
-void RequestParser::postBodyParser(Body &body, Header &header)
+void RequestParser::postBodyParser(Body &body, Header &header, size_t maxBodySize)
 {
 	FieldValue fieldvalue;
 	std::map<std::string, std::string>::const_iterator boundary;
@@ -387,11 +393,11 @@ void RequestParser::postBodyParser(Body &body, Header &header)
 		Logger::debug(LOG_LINE) << "boundary is required in multipart/form-data body\n";
 		throw(400);
 	}
-	RequestParser::parseMultipartBody(body, boundary->second);
+	RequestParser::parseMultipartBody(body, boundary->second, maxBodySize);
 	body.print();
 }
 
-void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
+void RequestParser::parseMultipartBody(Body &body, const std::string &boundary, size_t maxBodySize)
 {
 	std::vector<std::string> bodySet;
 	std::string rawdata;
@@ -402,10 +408,12 @@ void RequestParser::parseMultipartBody(Body &body, const std::string &boundary)
 		return;
 	Logger::debug(LOG_LINE) << "This is Multipart Form-data Body\n";
 	for (size_t i = 0; i < bodySet.size() - 1; i++)
-		RequestParser::parseMultipartEachBody(body, trimStr(bodySet[i], "\r\n"));
+		RequestParser::parseMultipartEachBody(body, trimStr(bodySet[i], "\r\n"), maxBodySize);
 }
 
-void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBody)
+void RequestParser::parseMultipartEachBody(Body &body,
+																					 const std::string &eachBody,
+																					 size_t maxBodySize)
 {
 	std::vector<std::string> sectionSet;
 
@@ -422,12 +430,13 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 				std::make_pair(Header(), std::vector<char>(sectionSet[0].begin(), sectionSet[0].end())));
 		return;
 	}
-	RequestParser::parseMultipartEachHeader(body, sectionSet[0], sectionSet[1]);
+	RequestParser::parseMultipartEachHeader(body, sectionSet[0], sectionSet[1], maxBodySize);
 }
 
 void RequestParser::parseMultipartEachHeader(Body &body,
 																						 const std::string &headerSection,
-																						 const std::string &bodySection)
+																						 const std::string &bodySection,
+																						 size_t maxBodySize)
 {
 	const std::string dummyMethod = "GET";
 	const std::string dummyHostField = "localhost";
@@ -444,7 +453,7 @@ void RequestParser::parseMultipartEachHeader(Body &body,
 			break;
 	}
 	headerbuf[tolowerStr("Host")] = dummyHostField;
-	RequestParser::headerParser(eachHeader, headerbuf, dummyMethod);
+	RequestParser::headerParser(eachHeader, headerbuf, dummyMethod, maxBodySize);
 #if DEBUG > 1
 	eachHeader.print();
 #endif

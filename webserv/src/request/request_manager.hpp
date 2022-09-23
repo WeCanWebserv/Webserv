@@ -29,10 +29,10 @@ private:
 	std::stringstream buf; // for startline and header
 	std::map<std::string, std::string> headerbuf;
 	size_t headerbufSize;
-	// int statusCode;
+	size_t maxBodySize;
 
 public:
-	RequestManager();
+	RequestManager(size_t maxBodySize);
 	RequestManager(const RequestManager &other);
 	RequestManager &operator=(const RequestManager &other);
 	~RequestManager();
