@@ -3,7 +3,6 @@
 #include "../libft.hpp"
 #include "../request/request.hpp"
 #include "Response.hpp"
-#include "UriParser.hpp"
 
 #include <cerrno>
 #include <cstring>
@@ -39,7 +38,7 @@ Cgi::operator bool() const
 bool Cgi::fail()
 {
 	int err;
-	int status;
+	int status = 0;
 
 	err = waitpid(this->pid, &status, WNOHANG);
 	if (err == -1)
@@ -56,13 +55,27 @@ bool Cgi::fail()
 	return (status != 0);
 }
 
+int Cgi::exitCode() const
+{
+	int status = 0;
+
+	waitpid(this->pid, &status, WNOHANG);
+
+	Logger::info() << "Cgi: process " << this->pid << " exit code: " << WEXITSTATUS(status)
+								 << " with signal " << WTERMSIG(status) << std::endl;
+	return (status);
+}
+
 void Cgi::clear()
 {
 	this->pid = -1;
 	this->isCgi = false;
+	this->fd[0] = -1;
+	this->fd[0] = -1;
 }
 
-int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd)
+int Cgi::run(
+		const std::string &cgiBin, Uri &uri, Request &req, const ServerConfig &config, int clientFd)
 {
 	int reqPipe[2];
 	int resPipe[2];
@@ -85,6 +98,11 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		return (1);
 	}
 
+	fcntl(reqPipe[0], F_SETFL, O_NONBLOCK);
+	fcntl(reqPipe[1], F_SETFL, O_NONBLOCK);
+	fcntl(resPipe[0], F_SETFL, O_NONBLOCK);
+	fcntl(resPipe[1], F_SETFL, O_NONBLOCK);
+
 	this->pid = fork();
 	if (this->pid == -1)
 	{
@@ -103,10 +121,8 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		close(resPipe[0]);
 		dup2(resPipe[1], STDOUT_FILENO);
 
-		UriParser uriParser(req.getStartline().uri);
-		char *cmd[] = {ft::strdup(location.tableOfCgiBins.at(uriParser.getExtension())),
-									 ft::strdup(location.root + uriParser.getFile()), NULL};
-		char **env = generateMetaVariables(req, config, location, clientFd);
+		char *cmd[] = {ft::strdup(cgiBin), ft::strdup(uri.getServerPath()), NULL};
+		char **env = generateMetaVariables(uri, req, config, clientFd);
 		execve(cmd[0], cmd, env);
 		exit(errno);
 	}
@@ -116,19 +132,13 @@ int Cgi::run(Request &req, const ServerConfig &config, const LocationConfig &loc
 		close(reqPipe[0]);
 		close(resPipe[1]);
 
-		fd[0] = resPipe[0];
-		fd[1] = reqPipe[1];
-
-		fcntl(fd[0], F_SETFL, O_NONBLOCK);
-		fcntl(fd[1], F_SETFL, O_NONBLOCK);
+		this->fd[0] = resPipe[0];
+		this->fd[1] = reqPipe[1];
 	}
 	return (0);
 }
 
-char **Cgi::generateMetaVariables(Request &req,
-																	const ServerConfig &config,
-																	const LocationConfig &location,
-																	int clientFd)
+char **Cgi::generateMetaVariables(Uri &uri, Request &req, const ServerConfig &config, int clientFd)
 {
 	typedef std::map<std::string, std::string> env_type;
 
@@ -147,7 +157,7 @@ char **Cgi::generateMetaVariables(Request &req,
 	 */
 	env["SERVER_ADDR"] = config.listennedHost;
 	env["SERVER_PORT"] = config.listennedPort;
-	env["SERVER_NAME"] = config.listOfServerNames.front();
+	env["SERVER_NAME"] = config.listOfServerNames.front(); // or Host header value
 	env["SERVER_PROTOCOL"] = "HTTP/1.1";
 	env["SERVER_SOFTWARE"] = "webserv";
 
@@ -164,27 +174,21 @@ char **Cgi::generateMetaVariables(Request &req,
 	/**
 	 * uri
 	 */
-	UriParser uriParser(req.getStartline().uri);
-
 	env["REQUEST_METHOD"] = req.getStartline().method;
 	env["REQUEST_URI"] = req.getStartline().uri;
-	env["DOCUMENT_URI"] = uriParser.getPath();
-	env["DOCUMENT_ROOT"] = location.root;
-	env["SCRIPT_NAME"] = uriParser.getFile();
-	env["SCRIPT_FILENAME"] = env["DOCUMENT_ROOT"] + env["SCRIPT_NAME"];
+	env["DOCUMENT_URI"] = uri.path;
+	env["DOCUMENT_ROOT"] = uri.root.second;
+	env["SCRIPT_NAME"] = uri.file;
+	env["SCRIPT_FILENAME"] = uri.getServerPath();
 
-	std::string pathInfo = uriParser.getPathInfo();
-
-	if (pathInfo.size())
+	if (uri.pathInfo.size())
 	{
-		env["PATH_INFO"] = pathInfo; // uri에서 SCRIPT_NAME 뒤에 오는 경로
+		env["PATH_INFO"] = uri.pathInfo; // uri에서 SCRIPT_NAME 뒤에 오는 경로
 		env["PATH_TRANSLATED"] = env["DOCUMENT_ROOT"] + env["PATH_INFO"];
 	}
 
-	std::string query = uriParser.getQuery();
-
-	if (query.size())
-		env["QUERY_STRING"] = query;
+	if (uri.query.size())
+		env["QUERY_STRING"] = uri.query;
 
 	/**
 	 * Request Header
@@ -197,7 +201,7 @@ char **Cgi::generateMetaVariables(Request &req,
 
 		fieldName = ft::transform(fieldName, ::toupper);
 		fieldName = ft::transform(fieldName, ft::toUnderscore);
-		env["HTTP_" + fieldName] = ""; // FIX: std::vector<FieldValue> => toString;
+		env["HTTP_" + fieldName] = req.getHeader().getRawValue(it->first);
 	}
 
 	/**
@@ -217,11 +221,12 @@ char **Cgi::generateMetaVariables(Request &req,
 	const size_t envSize = env.size();
 	int i = 0;
 
-	result = new char *[envSize];
+	result = new char *[envSize + 1];
 	for (env_type::iterator it = env.begin(), ite = env.end(); it != ite; ++it, ++i)
 	{
 		result[i] = ft::strdup(it->first + "=" + it->second);
 	}
+	result[envSize] = NULL;
 	return (result);
 }
 

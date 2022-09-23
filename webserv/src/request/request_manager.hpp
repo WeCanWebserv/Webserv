@@ -40,7 +40,7 @@ public:
 	bool isReady(); // request message가 1개 이상 parsing이 완료
 
 	bool isEmpty();
-	Request &pop();
+	Request pop();
 	Request &front();
 	size_t size();
 	void pruneAll(void);

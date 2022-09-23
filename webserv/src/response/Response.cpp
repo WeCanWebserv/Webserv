@@ -3,11 +3,12 @@
 #include "../request/request.hpp"
 #include "MediaType.hpp"
 #include "ReasonPhrase.hpp"
-#include "UriParser.hpp"
-#include "../libft.hpp"
+#include "Uri.hpp"
+
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <utility>
@@ -88,14 +89,14 @@ std::size_t Response::moveBufPosition(int nbyte)
  */
 std::pair<int, int> Response::process(Request &req, const ServerConfig &config, int clientFd)
 {
-	UriParser uriParser(req.getStartline().uri);
-	std::string targetPath = uriParser.getPath();
+	Startline &startLine = req.getStartline();
+	Uri uri(startLine.uri);
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
-	if (req.getStartline().httpVersion == "HTTP/1.0")
+	if (startLine.httpVersion == "HTTP/1.0")
 		this->isClose = true;
 
-	locIter = findLocation(targetPath, config.tableOfLocations);
+	locIter = findLocation(uri.path, config.tableOfLocations);
 	if (locIter == config.tableOfLocations.end())
 	{
 		Logger::info() << "Response::process: not found location block" << std::endl;
@@ -105,7 +106,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	const std::string &locPath = (*locIter).first;
 	const LocationConfig &location = (*locIter).second;
 
-	if (location.allowedMethods.find(req.getStartline().method) == location.allowedMethods.end())
+	if (location.allowedMethods.find(startLine.method) == location.allowedMethods.end())
 	{
 		Logger::info() << "Response::process: not allowed method" << std::endl;
 		throw(405);
@@ -116,18 +117,21 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		setStatusCode(location.redirectionSetting.first);
 		setHeader("Location", location.redirectionSetting.second);
 		setBuffer();
-		return (std::make_pair(-1, 0));
+		return (std::make_pair(-1, -1));
 	}
 
-	targetPath.replace(0, locPath.size(), location.root);
+	uri.setRoot(locPath, location.root);
 
-	if (uriParser.isDirectory())
+	if (uri.path[uri.path.size() - 1] == '/')
 	{
 		std::vector<std::string> files;
 
-		files = readDirectory(targetPath);
+		files = readDirectory(uri.getServerPath());
 		if (location.isAutoIndexOn)
-			return (setBodyToDefaultPage(generateFileListPage(req.getStartline().uri, files)));
+		{
+			setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root, files));
+			return (std::make_pair(-1, -1));
+		}
 		else
 		{
 			std::string index;
@@ -139,13 +143,14 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 											 << std::endl;
 				throw(404);
 			}
-			targetPath += index;
+			uri.setIndexFile(index);
 		}
 	}
 
-	if (location.tableOfCgiBins.find(uriParser.getExtension()) != location.tableOfCgiBins.end())
+	if (location.tableOfCgiBins.find(uri.extension) != location.tableOfCgiBins.end())
 	{
-		if (cgi.run(req, config, location, clientFd))
+		std::string cgiBin = location.tableOfCgiBins.at(uri.extension);
+		if (cgi.run(cgiBin, uri, req, config, clientFd))
 		{
 			Logger::error() << "Cgi::run: " << std::strerror(errno) << std::endl;
 			throw(500);
@@ -156,6 +161,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		if (req.getBody().payload.size())
 		{
 			this->buffer = ::Body::vecToStr(req.getBody().payload);
+			this->totalBytes = req.getBody().payload.size();
 			return (std::make_pair(cgi.fd[1], EPOLLOUT));
 		}
 		else
@@ -166,22 +172,27 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
-	Logger::debug(LOG_LINE) << "serve '" << targetPath << "'" << std::endl;
-	this->body.fd = open(targetPath.c_str(), O_RDONLY | O_NONBLOCK);
-	if (this->body.fd == -1)
+	Logger::debug(LOG_LINE) << "serve '" << uri.getServerPath() << "'" << std::endl;
+	this->body.file.open(uri.getServerPath().c_str());
+	if (!this->body.file)
 	{
-		Logger::info() << "Response::process: open(" << targetPath << "): " << std::strerror(errno)
-									 << std::endl;
+		Logger::info() << "Response::process: open(" << uri.getServerPath()
+									 << "): " << std::strerror(errno) << std::endl;
 		throw(404);
 	}
-	setHeader("Content-Type", MediaType::get(UriParser(targetPath).getExtension()));
-	return (std::make_pair(this->body.fd, EPOLLIN));
+	this->body.size = getFileSize();
+	if (this->body.size)
+	{
+		setHeader("Content-Type", MediaType::get(uri.extension));
+		setHeader("Content-Length", ft::toString(this->body.size));
+		this->body.buffer << this->body.file.rdbuf();
+	}
+	setBuffer();
+	return (std::make_pair(-1, -1));
 }
 
-std::pair<int, int> Response::process(int errorCode, const ServerConfig &config, bool close)
+void Response::process(int errorCode, const ServerConfig &config, bool close)
 {
-	std::string errorPage;
-
 	clear();
 
 	this->statusCode = errorCode;
@@ -189,40 +200,38 @@ std::pair<int, int> Response::process(int errorCode, const ServerConfig &config,
 
 	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
-		errorPage = config.tableOfErrorPages.at(errorCode);
-		this->body.fd = open(errorPage.c_str(), O_RDONLY | O_NONBLOCK);
-		if (this->body.fd != -1)
+		std::string errorPage = config.tableOfErrorPages.at(errorCode);
+
+		Logger::debug(LOG_LINE) << "found error page: " << errorPage << std::endl;
+		this->body.file.open(errorPage.c_str());
+		if (this->body.file)
 		{
-			setHeader("Content-Type", MediaType::get(UriParser(errorPage).getExtension()));
-			return (std::make_pair(this->body.fd, EPOLLIN));
+			this->body.size = getFileSize();
+			if (this->body.size)
+			{
+				setHeader("Content-Type", MediaType::get(Uri(errorPage).extension));
+				setHeader("Content-Length", ft::toString(this->body.size));
+				this->body.buffer << this->body.file.rdbuf();
+			}
+			setBuffer();
+			return;
 		}
 	}
 
-	return (setBodyToDefaultPage(generateDefaultErrorPage(errorCode)));
+	setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
 }
 
-int Response::readBody()
+int Response::readPipe()
 {
 	const std::size_t bufSize = 4096 * 16;
 	char buf[bufSize];
 	int n;
 
-	n = read(this->body.fd, buf, bufSize - 1);
+	n = read(this->cgi.fd[0], buf, bufSize - 1);
 	if (n == -1)
 	{
 		Logger::error() << "Response::readBody: read: " << std::strerror(errno) << std::endl;
 		return (-1);
-	}
-	else if (n == 0)
-	{
-		if (cgi)
-			cgi.parseCgiResponse(*this);
-		else if (this->body.size)
-			setHeader("Content-Length", ft::toString(this->body.size));
-
-		setBuffer();
-
-		return (0);
 	}
 	buf[n] = '\0';
 	this->body.buffer << buf;
@@ -230,7 +239,7 @@ int Response::readBody()
 	return (1);
 }
 
-int Response::writeBody()
+int Response::writePipe()
 {
 	int n;
 
@@ -247,6 +256,22 @@ int Response::writeBody()
 	}
 	moveBufPosition(n);
 	return (0);
+}
+
+void Response::parseCgiResponse()
+{
+	int exitCode = this->cgi.exitCode();
+
+	this->cgi.parseCgiResponse(*this);
+
+	if (exitCode != 0 && this->body.buffer.rdbuf()->in_avail() == 0)
+		throw(503);
+	else if (this->statusCode == 200 && this->header.find("Content-Length") == this->header.end())
+	{
+		setStatusCode(204);
+		this->body.buffer << CRLF;
+	}
+	setBuffer();
 }
 
 std::map<std::string, LocationConfig>::const_iterator
@@ -326,10 +351,13 @@ std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
 {
 	this->body.buffer << html;
 	this->body.size = html.size();
-	setHeader("Content-Length", ft::toString(this->body.size));
-	setHeader("Content-Type", MediaType::get(".html"));
+	if (this->body.size)
+	{
+		setHeader("Content-Length", ft::toString(this->body.size));
+		setHeader("Content-Type", MediaType::get(".html"));
+	}
 	setBuffer();
-	return (std::make_pair(-1, 0));
+	return (std::make_pair(-1, -1));
 }
 
 std::string Response::generateDefaultErrorPage(int code) const
@@ -346,16 +374,17 @@ std::string Response::generateDefaultErrorPage(int code) const
 	return (html.str());
 }
 
-std::string
-Response::generateFileListPage(const std::string &path, const std::vector<std::string> &files) const
+std::string Response::generateFileListPage(const std::string &uri,
+																					 const std ::string &root,
+																					 const std::vector<std::string> &files) const
 {
 	std::stringstream html;
 	std::size_t totalFiles = files.size();
 
 	html << "<html>\n";
-	html << "<head><title>Index of " << path << "</title></head>\n";
+	html << "<head><title>Index of " << uri << "</title></head>\n";
 	html << "<body>\n";
-	html << "<h1>Index of " << path << "</h1><hr><pre><a href=\"../\">../</a>\n";
+	html << "<h1>Index of " << uri << "</h1><hr><pre><a href=\"../\">../</a>\n";
 
 	for (std::size_t i = 0; i < totalFiles; ++i)
 	{
@@ -363,10 +392,15 @@ Response::generateFileListPage(const std::string &path, const std::vector<std::s
 		if (files[i][0] == '.')
 			continue;
 
+		const std::string path = root + files[i];
 		struct stat st;
 
-		if (stat(files[i].c_str(), &st) == -1)
+		if (stat(path.c_str(), &st) == -1)
+		{
+			Logger::error() << files[i] << ": " << std::strerror(errno) << std::endl;
 			continue;
+		}
+
 		// file name
 		html << "<a href=\"" << files[i] << "\">" << files[i] << "</a>";
 		html << std::string(50 - files[i].size(), ' ');
@@ -396,6 +430,23 @@ void Response::clearBody(Body &targetBody)
 	targetBody.fd = -1;
 	targetBody.size = 0;
 	targetBody.buffer.str("");
+	targetBody.buffer.clear();
+	targetBody.file.close();
+	targetBody.file.clear();
+}
+
+size_t Response::getFileSize()
+{
+	std::ifstream &file = this->body.file;
+	size_t size = 0;
+
+	if (file)
+	{
+		file.seekg(0, file.end);
+		size = file.tellg();
+		file.seekg(0, file.beg);
+	}
+	return (size);
 }
 
 std::vector<std::string> Response::readDirectory(const std::string &path)

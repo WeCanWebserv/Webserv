@@ -125,9 +125,36 @@ public:
 		return (*this);
 	}
 
+	std::string headerMapToStr(void)
+	{
+		std::string str;
+		for (HeaderMap::iterator it = headerMap.begin(); it != headerMap.end(); it++)
+		{
+			str.append(it->first);
+			str.append(": ");
+			str.append(getRawValue(it->first));
+			str.append("\r\n");
+		}
+		return str;
+	}
+
 	const HeaderMap &getFields(void) const
 	{
 		return this->headerMap;
+	}
+
+	std::string getRawValue(const std::string &fieldname) const
+	{
+		const std::vector<FieldValue> values = getFieldValueList(fieldname);
+		std::string rawValue;
+
+		for (size_t i = 0; i < values.size(); i++)
+		{
+			rawValue.append((values)[i].toString());
+			if (i + 1 != values.size())
+				rawValue.append(",");
+		}
+		return (rawValue);
 	}
 
 	void insertField(const std::pair<std::string, std::vector<FieldValue> > &field)

@@ -3,6 +3,7 @@
 
 #include "../Config.hpp"
 #include "../request/request.hpp"
+#include "Uri.hpp"
 
 #include <sstream>
 #include <string>
@@ -25,14 +26,13 @@ public:
 	operator bool() const;
 
 	bool fail();
+	int exitCode() const;
 
 	void clear();
 
-	int run(Request &req, const ServerConfig &config, const LocationConfig &location, int clientFd);
-	char **generateMetaVariables(Request &req,
-															 const ServerConfig &config,
-															 const LocationConfig &location,
-															 int clientFd);
+	int run(
+			const std::string &cgiBin, Uri &uri, Request &req, const ServerConfig &config, int clientFd);
+	char **generateMetaVariables(Uri &uri, Request &req, const ServerConfig &config, int clientFd);
 
 	int parseCgiResponse(Response &res);
 	int parseStatusHeader(std::stringstream &ss);
