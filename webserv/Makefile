@@ -2,8 +2,8 @@
 
 NAME					=		webserv
 
-CXX						= 	c++
-CXXFLAGS			=		-Wall -Wextra -Werror -std=c++98
+CXX						= 	clang++
+CXXFLAGS			=		-Wall -Wextra -Werror -std=c++98 -g
 INC						=		-I./src/
 
 DEFAULT_DIR		= 	./src
@@ -25,6 +25,7 @@ SRCS					=		$(REQUEST_SRCS) \
 									$(RESPONSE_SRCS) \
 									$(addprefix $(DEFAULT_DIR)/, \
 											ConfigParser.cpp \
+											Config.cpp \
 											Connection.cpp \
 											Logger.cpp \
 											ServerManager.cpp \
