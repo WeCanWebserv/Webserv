@@ -199,7 +199,7 @@ char **Cgi::generateMetaVariables(Uri &uri, Request &req, const ServerConfig &co
 
 		fieldName = ft::transform(fieldName, ::toupper);
 		fieldName = ft::transform(fieldName, ft::toUnderscore);
-		env["HTTP_" + fieldName] = ""; // FIX: std::vector<FieldValue> => toString;
+		env["HTTP_" + fieldName] = req.getHeader().getRawValue(it->first);
 	}
 
 	/**

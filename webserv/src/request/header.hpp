@@ -132,25 +132,7 @@ public:
 		{
 			str.append(it->first);
 			str.append(": ");
-			for (size_t i = 0; i < it->second.size(); i++)
-			{
-				str.append((it->second)[i].value);
-				for (std::map<std::string, std::string>::iterator descit =
-								 (it->second)[i].descriptions.begin();
-						 descit != (it->second)[i].descriptions.end(); descit++)
-				{
-					str.append(";");
-					str.append(descit->first);
-
-					if (descit->second.size())
-					{
-						str.append("=");
-						str.append(descit->second);
-					}
-				}
-				if (i + 1 != it->second.size())
-					str.append(",");
-			}
+			str.append(getRawValue(it->first));
 			str.append("\r\n");
 		}
 		return str;
@@ -159,6 +141,20 @@ public:
 	const HeaderMap &getFields(void) const
 	{
 		return this->headerMap;
+	}
+
+	std::string getRawValue(const std::string &fieldname) const
+	{
+		const std::vector<FieldValue> values = getFieldValueList(fieldname);
+		std::string rawValue;
+
+		for (size_t i = 0; i < values.size(); i++)
+		{
+			rawValue.append((values)[i].toString());
+			if (i + 1 != values.size())
+				rawValue.append(",");
+		}
+		return (rawValue);
 	}
 
 	void insertField(const std::pair<std::string, std::vector<FieldValue> > &field)
