@@ -1,0 +1,25 @@
+version: "3"
+
+services:
+
+  webserv:
+    build: ./wordpress/
+    image: webserv-wordpress
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - "../../webserv:/usr/share/webserv"
+    depends_on:
+      - db
+
+  db:
+    image: mysql:5.7
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: webserv
+      MYSQL_PASSWORD: webserv123
+    ports:
+      - 3306
