@@ -22,6 +22,7 @@ private:
 		// STAGE_DONE
 	};
 
+
 	std::queue<Request> requestQueue;
 
 	ParseStage parseStage;
