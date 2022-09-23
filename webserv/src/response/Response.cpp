@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <utility>
@@ -159,6 +160,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		if (req.getBody().payload.size())
 		{
 			this->buffer = ::Body::vecToStr(req.getBody().payload);
+			this->totalBytes = req.getBody().payload.size();
 			return (std::make_pair(cgi.fd[1], EPOLLOUT));
 		}
 		else
@@ -218,13 +220,13 @@ void Response::process(int errorCode, const ServerConfig &config, bool close)
 	setBodyToDefaultPage(generateDefaultErrorPage(errorCode));
 }
 
-int Response::readBody()
+int Response::readPipe()
 {
 	const std::size_t bufSize = 4096 * 16;
 	char buf[bufSize];
 	int n;
 
-	n = read(this->body.fd, buf, bufSize - 1);
+	n = read(this->cgi.fd[0], buf, bufSize - 1);
 	if (n == -1)
 	{
 		Logger::error() << "Response::readBody: read: " << std::strerror(errno) << std::endl;
@@ -236,7 +238,7 @@ int Response::readBody()
 	return (1);
 }
 
-int Response::writeBody()
+int Response::writePipe()
 {
 	int n;
 
@@ -259,21 +261,16 @@ void Response::parseCgiResponse()
 {
 	int exitCode = this->cgi.exitCode();
 
-	if (exitCode == 0)
-	{
-		this->cgi.parseCgiResponse(*this);
+	this->cgi.parseCgiResponse(*this);
 
-		if (this->header.find("Content-Length") == this->header.end())
-		{
-			setStatusCode(204);
-			this->body.buffer << CRLF;
-		}
-		setBuffer();
-	}
-	else
-	{
+	if (exitCode != 0 && this->body.buffer.rdbuf()->in_avail() == 0)
 		throw(503);
+	else if (this->statusCode == 200 && this->header.find("Content-Length") == this->header.end())
+	{
+		setStatusCode(204);
+		this->body.buffer << CRLF;
 	}
+	setBuffer();
 }
 
 std::map<std::string, LocationConfig>::const_iterator

@@ -248,7 +248,7 @@ void ServerManager::loop()
 				{
 					int n;
 
-					n = response.readBody();
+					n = response.readPipe();
 					if (n < 0)
 					{
 						const ServerConfig &config = this->servers[connection.getServerFd()];
@@ -263,16 +263,16 @@ void ServerManager::loop()
 				}
 				else if (occurredEvent & EPOLLOUT)
 				{
-					int pipe = response.writeBody();
+					int rdPipe = response.writePipe();
 
-					if (pipe == 0)
+					if (rdPipe == 0)
 						continue;
 
 					this->deleteEvent(eventFd);
 					this->extraFds.erase(eventFd);
 					close(eventFd);
 
-					if (pipe < 0)
+					if (rdPipe < 0)
 					{
 						const ServerConfig &config = this->servers[connection.getServerFd()];
 						response.process(503, config, true);
@@ -280,7 +280,10 @@ void ServerManager::loop()
 						this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
 					}
 					else
-						this->addEvent(pipe, EPOLLIN);
+					{
+						this->addEvent(rdPipe, EPOLLIN);
+						extraFds[rdPipe] = originFd;
+					}
 				}
 			}
 		}
@@ -401,7 +404,7 @@ void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<
 			this->disconnect(eventFd);
 			return;
 		}
-		Logger::debug(LOG_LINE) << "add pipe event: fd" << pipeEvent.first << std::endl;
+		Logger::debug(LOG_LINE) << "add pipe event: fd " << pipeEvent.first << std::endl;
 	}
 	else if (res.ready())
 	{

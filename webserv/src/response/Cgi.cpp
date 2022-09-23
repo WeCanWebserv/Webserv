@@ -38,7 +38,7 @@ Cgi::operator bool() const
 bool Cgi::fail()
 {
 	int err;
-	int status;
+	int status = 0;
 
 	err = waitpid(this->pid, &status, WNOHANG);
 	if (err == -1)
@@ -57,7 +57,7 @@ bool Cgi::fail()
 
 int Cgi::exitCode() const
 {
-	int status;
+	int status = 0;
 
 	waitpid(this->pid, &status, WNOHANG);
 
@@ -70,6 +70,8 @@ void Cgi::clear()
 {
 	this->pid = -1;
 	this->isCgi = false;
+	this->fd[0] = -1;
+	this->fd[0] = -1;
 }
 
 int Cgi::run(

@@ -56,8 +56,8 @@ public:
 	std::pair<int, int> process(Request &req, const ServerConfig &config, int clientFd);
 	void process(int errorCode, const ServerConfig &config, bool close = false);
 
-	int readBody();
-	int writeBody();
+	int readPipe();
+	int writePipe();
 	void parseCgiResponse();
 
 private:
