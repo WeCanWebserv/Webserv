@@ -5,7 +5,6 @@
 #include "ReasonPhrase.hpp"
 #include "Uri.hpp"
 
-
 #include <algorithm>
 #include <cerrno>
 #include <cstdlib>
@@ -480,7 +479,10 @@ std::vector<std::string> Response::readDirectory(const std::string &path)
 		closedir(dir);
 	}
 	else
+	{
 		Logger::error() << "Response::readDirectory: opendir: " << std::strerror(errno) << std::endl;
+		throw(404);
+	}
 	return (files);
 }
 
