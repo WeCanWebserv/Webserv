@@ -317,7 +317,7 @@ bool RequestParser::validateHeaderField(Header &header, size_t maxBodySize)
 		if (it->first == tolowerStr(CONTENT_LENGTH))
 		{
 			std::stringstream tmp(it->first);
-			int x = 0;
+			size_t x = 0;
 			tmp >> x;
 			if (x > maxBodySize)
 				return false;

@@ -36,6 +36,10 @@ RequestManager::~RequestManager()
 	this->pruneAll();
 }
 
+void RequestManager::setMaxBodySize(size_t maxBodySize) {
+	this->maxBodySize = maxBodySize;
+}
+
 void RequestManager::pushDummyRequest(void)
 {
 	this->requestQueue.push(Request());
