@@ -125,6 +125,37 @@ public:
 		return (*this);
 	}
 
+	std::string headerMapToStr(void)
+	{
+		std::string str;
+		for (HeaderMap::iterator it = headerMap.begin(); it != headerMap.end(); it++)
+		{
+			str.append(it->first);
+			str.append(": ");
+			for (size_t i = 0; i < it->second.size(); i++)
+			{
+				str.append((it->second)[i].value);
+				for (std::map<std::string, std::string>::iterator descit =
+								 (it->second)[i].descriptions.begin();
+						 descit != (it->second)[i].descriptions.end(); descit++)
+				{
+					str.append(";");
+					str.append(descit->first);
+
+					if (descit->second.size())
+					{
+						str.append("=");
+						str.append(descit->second);
+					}
+				}
+				if (i + 1 != it->second.size())
+					str.append(",");
+			}
+			str.append("\r\n");
+		}
+		return str;
+	}
+
 	const HeaderMap &getFields(void) const
 	{
 		return this->headerMap;

@@ -345,8 +345,9 @@ bool RequestParser::checkHeaderFieldContain(std::map<std::string, std::string> &
  */
 ssize_t RequestParser::bodyParser(Body &body, std::vector<char> &bodyOctets, Header &header)
 {
-	Logger::debug(LOG_LINE) << "Body Octet: " << std::string(bodyOctets.begin(), bodyOctets.end())
-													<< std::endl;
+	if (bodyOctets.size())
+		Logger::debug(LOG_LINE) << "Body Octet: " << std::string(bodyOctets.begin(), bodyOctets.end())
+														<< std::endl;
 	if (header.hasField(TRANSFER_ENCODING))
 	{
 		if (header.hasFieldValue(TRANSFER_ENCODING, "chunked"))
@@ -413,7 +414,7 @@ void RequestParser::parseMultipartEachBody(Body &body, const std::string &eachBo
 	{
 		Logger::debug(LOG_LINE)
 				<< "Multipart format body does not have header-body pair || section delimiter is invalid\n";
-				throw(400);
+		throw(400);
 	}
 	if (sectionSet.size() == 1)
 	{
