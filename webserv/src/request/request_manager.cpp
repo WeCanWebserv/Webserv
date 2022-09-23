@@ -4,7 +4,8 @@
 #include <exception>
 #include <stdexcept>
 
-RequestManager::RequestManager() : parseStage(STAGE_STARTLINE), headerbufSize(0)
+RequestManager::RequestManager(size_t maxBodySize)
+		: parseStage(STAGE_STARTLINE), headerbufSize(0), maxBodySize(maxBodySize)
 {
 	this->pushDummyRequest();
 }
@@ -33,6 +34,10 @@ RequestManager &RequestManager::operator=(const RequestManager &other)
 RequestManager::~RequestManager()
 {
 	this->pruneAll();
+}
+
+void RequestManager::setMaxBodySize(size_t maxBodySize) {
+	this->maxBodySize = maxBodySize;
 }
 
 void RequestManager::pushDummyRequest(void)
@@ -178,7 +183,7 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 					{
 						// header section이 모두 끝났을 경우
 						RequestParser::headerParser(request.getHeader(), this->headerbuf,
-																				request.getStartline().method);
+																				request.getStartline().method, this->maxBodySize);
 						this->setParseStage(RequestManager::STAGE_BODY);
 					}
 				}
@@ -198,10 +203,12 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 			if ((remainedCount =
 							 RequestParser::bodyParser(request.getBody(), bodyOctets, request.getHeader())) >= 0)
 			{
-				RequestParser::postBodyParser(request.getBody(), request.getHeader());
+				RequestParser::postBodyParser(request.getBody(), request.getHeader(), this->maxBodySize);
 				Logger::debug(LOG_LINE) << this->requestQueue.size()
 																<< "th request message parsing is just completed\n";
 				octetOffset = octetSize - remainedCount;
+				if (request.getBody().payload.size() > maxBodySize)
+					throw (413);
 				this->prepareNextRequest();
 			}
 			if (remainedCount <= 0) // 남았을 경우에만 continue, 아니면 break한다.

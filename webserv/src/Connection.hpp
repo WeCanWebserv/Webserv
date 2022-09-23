@@ -13,9 +13,10 @@ private:
 
 public:
 	Connection();
-	Connection(int serverFd);
+	Connection(int serverFd, size_t maxBodySize);
 
 	void setServerFd(int serverFd);
+	void setMaxBodySize(size_t maxBodySize);
 	int getServerFd() const;
 	RequestManager &getRequestManager();
 	Response &getResponse();

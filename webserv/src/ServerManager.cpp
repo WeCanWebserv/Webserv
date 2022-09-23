@@ -344,6 +344,7 @@ void ServerManager::connect(int serverFd)
 		this->connections[fd].clear();
 	}
 	this->connections[fd].setServerFd(serverFd);
+	this->connections[fd].setMaxBodySize(this->servers[serverFd].maxRequestBodySize);
 	Logger::info() << "ServerManager: " << fd << " connected" << std::endl;
 	if (this->addEvent(fd, EPOLLIN) == -1)
 	{

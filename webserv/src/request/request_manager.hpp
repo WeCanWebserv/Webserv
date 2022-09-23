@@ -29,10 +29,10 @@ private:
 	std::stringstream buf; // for startline and header
 	std::map<std::string, std::string> headerbuf;
 	size_t headerbufSize;
-	// int statusCode;
+	size_t maxBodySize;
 
 public:
-	RequestManager();
+	RequestManager(size_t maxBodySize);
 	RequestManager(const RequestManager &other);
 	RequestManager &operator=(const RequestManager &other);
 	~RequestManager();
@@ -44,6 +44,7 @@ public:
 	Request &front();
 	size_t size();
 	void pruneAll(void);
+	void setMaxBodySize(size_t maxBodySize);
 
 private:
 	void setParseStage(ParseStage stage);
@@ -57,6 +58,7 @@ private:
 
 	void pruneBuffer(void);
 	void prepareNextRequest(void);
+
 };
 /**
 	 * 모두 완성된 request message만을 간주하는 method이다.
