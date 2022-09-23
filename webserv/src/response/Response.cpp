@@ -5,7 +5,6 @@
 #include "ReasonPhrase.hpp"
 #include "Uri.hpp"
 
-
 #include <algorithm>
 #include <cerrno>
 #include <cstdlib>
@@ -93,7 +92,8 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	Uri uri(startLine.uri);
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
-	if (startLine.httpVersion == "HTTP/1.0")
+	std::string conn = req.getHeader().getRawValue("connection");
+	if (startLine.httpVersion == "HTTP/1.0" || ft::transform(conn, ::tolower) == "close")
 		this->isClose = true;
 
 	locIter = findLocation(uri.path, config.tableOfLocations);
@@ -114,10 +114,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 	if (location.isRedirectionSet)
 	{
-		setStatusCode(location.redirectionSetting.first);
-		setHeader("Location", location.redirectionSetting.second);
-		setBuffer();
-		return (std::make_pair(-1, -1));
+		return (setRedirect(location.redirectionSetting.first, location.redirectionSetting.second));
 	}
 
 	uri.setRoot(locPath, location.root);
@@ -147,8 +144,22 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
+	if (isDirectory(uri.getServerPath()))
+	{
+		return (setRedirect(301, uri.path + '/'));
+	}
+
+	this->body.file.open(uri.getServerPath().c_str());
+	if (!this->body.file)
+	{
+		Logger::info() << "Response::process: open(" << uri.getServerPath()
+									 << "): " << std::strerror(errno) << std::endl;
+		throw(404);
+	}
+
 	if (location.tableOfCgiBins.find(uri.extension) != location.tableOfCgiBins.end())
 	{
+		this->body.file.close();
 		std::string cgiBin = location.tableOfCgiBins.at(uri.extension);
 		if (cgi.run(cgiBin, uri, req, config, clientFd))
 		{
@@ -173,13 +184,6 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	}
 
 	Logger::debug(LOG_LINE) << "serve '" << uri.getServerPath() << "'" << std::endl;
-	this->body.file.open(uri.getServerPath().c_str());
-	if (!this->body.file)
-	{
-		Logger::info() << "Response::process: open(" << uri.getServerPath()
-									 << "): " << std::strerror(errno) << std::endl;
-		throw(404);
-	}
 	this->body.size = getFileSize();
 	if (this->body.size)
 	{
@@ -347,6 +351,15 @@ void Response::setBuffer()
 	this->isReady = true;
 }
 
+std::pair<int, int> Response::setRedirect(int status, const std::string &location)
+{
+	clear();
+	setStatusCode(status);
+	setHeader("Location", location);
+	setBuffer();
+	return (std::make_pair(-1, -1));
+}
+
 std::pair<int, int> Response::setBodyToDefaultPage(const std::string &html)
 {
 	this->body.buffer << html;
@@ -466,7 +479,10 @@ std::vector<std::string> Response::readDirectory(const std::string &path)
 		closedir(dir);
 	}
 	else
+	{
 		Logger::error() << "Response::readDirectory: opendir: " << std::strerror(errno) << std::endl;
+		throw(404);
+	}
 	return (files);
 }
 
@@ -484,6 +500,20 @@ std::string Response::searchIndexFile(const std::vector<std::string> &files,
 			return (indexFiles[i]);
 	}
 	return ("");
+}
+
+bool Response::isDirectory(const std::string &path)
+{
+	DIR *dir;
+
+	dir = opendir(path.c_str());
+	if (dir)
+	{
+		closedir(dir);
+		return (true);
+	}
+	else
+		return (false);
 }
 
 std::string Response::timeInfoToString(std::tm *timeInfo, const std::string format) const

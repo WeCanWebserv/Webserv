@@ -17,7 +17,7 @@ void usage(char *name)
 
 int main(int ac, char **av)
 {
-	Logger::init(Logger::LOGLEVEL_DEBUG, "/dev/stderr");
+	Logger::init(Logger::LOGLEVEL_ERROR, "/dev/stderr");
 	if (ac > 2)
 	{
 		usage(av[1]);

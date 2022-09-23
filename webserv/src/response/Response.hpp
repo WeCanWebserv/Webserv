@@ -68,6 +68,8 @@ private:
 	void setHeader(std::string name, std::string value);
 	void setBuffer();
 
+	std::pair<int, int> setRedirect(int status, const std::string &location);
+
 	std::pair<int, int> setBodyToDefaultPage(const std::string &html);
 	std::string generateDefaultErrorPage(int code) const;
 	std::string generateFileListPage(const std::string &uri,
@@ -79,6 +81,7 @@ private:
 
 	size_t getFileSize();
 
+	bool isDirectory(const std::string &path);
 	std::vector<std::string> readDirectory(const std::string &path);
 	std::string searchIndexFile(const std::vector<std::string> &files,
 															const std::vector<std::string> &indexFiles);

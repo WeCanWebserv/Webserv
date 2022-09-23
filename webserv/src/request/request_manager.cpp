@@ -80,7 +80,7 @@ void RequestManager::prepareNextRequest(void)
 
 bool RequestManager::isEmpty()
 {
-	return this->requestQueue.size() == 1;
+	return this->requestQueue.size() <= 1;
 }
 
 Request RequestManager::pop()
@@ -219,7 +219,8 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 	{
 		Logger::debug(LOG_LINE) << "Error code: " << code << "\n";
 		this->pruneAll();
-		return code;
+		// return code;
+		throw code;
 	}
 	return 0;
 }

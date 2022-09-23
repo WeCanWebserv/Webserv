@@ -55,7 +55,8 @@ void RequestParser::startlineMethodParser(std::string &method, const std::string
 	if ((idx = findToken(token, RequestParser::methodTokenSet)) < 0)
 	{
 		Logger::debug(LOG_LINE) << "No match method in Method Tokens\n";
-		throw(400);
+		// throw(400);
+		throw(405);
 	}
 	method = RequestParser::methodTokenSet[idx];
 }
@@ -700,11 +701,11 @@ std::vector<std::string> RequestParser::initMethodTokenSet(void)
 	tokenset.push_back("GET");
 	tokenset.push_back("POST");
 	tokenset.push_back("DELETE");
-	tokenset.push_back("HEAD");
-	tokenset.push_back("PUT");
-	tokenset.push_back("PATCH");
-	tokenset.push_back("OPTIONS");
-	tokenset.push_back("CONNECT");
-	tokenset.push_back("TRACE");
+	// tokenset.push_back("HEAD");
+	// tokenset.push_back("PUT");
+	// tokenset.push_back("PATCH");
+	// tokenset.push_back("OPTIONS");
+	// tokenset.push_back("CONNECT");
+	// tokenset.push_back("TRACE");
 	return tokenset;
 }
