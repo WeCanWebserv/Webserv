@@ -93,7 +93,8 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	Uri uri(startLine.uri);
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
-	if (startLine.httpVersion == "HTTP/1.0")
+	std::string conn = req.getHeader().getRawValue("connection");
+	if (startLine.httpVersion == "HTTP/1.0" || ft::transform(conn, ::tolower) == "close")
 		this->isClose = true;
 
 	locIter = findLocation(uri.path, config.tableOfLocations);
