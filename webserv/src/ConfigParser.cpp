@@ -330,6 +330,8 @@ LocationConfig LocationBlock::toLocationConfig()
 												<< std::endl;
 				throw std::runtime_error("invalid number of directive arguments.");
 			}
+			if (*tokens[1].rbegin() != '/')
+				tokens[1].push_back('/');
 			locationConfig.root = tokens[1];
 			break;
 		}

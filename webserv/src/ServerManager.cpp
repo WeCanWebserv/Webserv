@@ -44,7 +44,7 @@ ServerManager::ServerManager(const char *path)
 		{
 			this->fdInUse.insert(socketFd);
 			int optVal = 1;
-			setsockopt(socketFd, SOL_SOCKET, SO_REUSEPORT, (void *)&optVal, (socklen_t)sizeof(optVal));
+			setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, (void *)&optVal, (socklen_t)sizeof(optVal));
 		}
 
 		ServerConfig serverConfig = serverConfigs[idx];
@@ -173,6 +173,11 @@ void ServerManager::loop()
 						}
 						else
 						{
+							connection.increaseTransactionCount();
+
+							if (connection.getTransactionCount() + 1 >= Connection::maxTransaction)
+								response.setClose();
+
 							if (requestManager.isReady())
 							{
 								const ServerConfig &config = this->servers[connection.getServerFd()];
@@ -204,6 +209,7 @@ void ServerManager::loop()
 						}
 					}
 				}
+				connection.setLastAcceesTime(time(NULL));
 			}
 			else
 			{
@@ -293,13 +299,30 @@ void ServerManager::loop()
 				}
 			}
 		}
-		// TODO:
-		// for (connection_container_type::iterator connIter = connections.begin(); contIter != connections.end(); connIter++)
-		// {
-		//   Connection& connection = connIter.second;
-		//   if (connection.checkTimeOut())
-		//     this->disconnect(connIter.first);
-		// }
+		for (connection_container_type::iterator connIter = connections.begin();
+				 connIter != connections.end(); connIter++)
+		{
+			int clientFd = connIter->first;
+			Connection &connection = connIter->second;
+
+			if (connection.checkTimeOut())
+			{
+				this->disconnect(clientFd);
+
+				std::pair<int, int> pipeFds = connection.getResponse().killCgiScript();
+				int targetFd;
+
+				if (this->extraFds.find(pipeFds.first) != this->extraFds.end())
+					targetFd = pipeFds.first;
+				else
+					targetFd = pipeFds.second;
+				this->deleteEvent(targetFd);
+				this->extraFds.erase(targetFd);
+
+				close(pipeFds.first);
+				close(pipeFds.second);
+			}
+		}
 	}
 }
 

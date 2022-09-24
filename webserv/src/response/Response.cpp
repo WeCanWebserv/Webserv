@@ -61,6 +61,11 @@ void Response::clear()
 	this->isReady = false;
 }
 
+void Response::setClose()
+{
+	this->isClose = true;
+}
+
 const char *Response::getBuffer() const
 {
 	return (this->buffer.c_str() + this->sentBytes);
@@ -178,7 +183,6 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		else
 		{
 			::close(cgi.fd[1]);
-			this->body.fd = cgi.fd[0];
 			return (std::make_pair(cgi.fd[0], EPOLLIN));
 		}
 	}
@@ -276,6 +280,12 @@ void Response::parseCgiResponse()
 		this->body.buffer << CRLF;
 	}
 	setBuffer();
+}
+
+std::pair<int, int> Response::killCgiScript()
+{
+	this->cgi.kill();
+	return (std::make_pair(this->cgi.fd[0], this->cgi.fd[1]));
 }
 
 std::map<std::string, LocationConfig>::const_iterator

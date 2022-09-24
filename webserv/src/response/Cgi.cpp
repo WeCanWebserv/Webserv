@@ -6,6 +6,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <csignal>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -72,6 +73,11 @@ void Cgi::clear()
 	this->isCgi = false;
 	this->fd[0] = -1;
 	this->fd[0] = -1;
+}
+
+void Cgi::kill()
+{
+	::kill(this->pid, SIGTERM);
 }
 
 int Cgi::run(

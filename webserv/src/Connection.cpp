@@ -1,8 +1,18 @@
 #include "Connection.hpp"
 
-Connection::Connection() : requestManager(0) {}
+#include <time.h>
 
-Connection::Connection(int serverFd, size_t maxBodySize) : serverFd(serverFd), requestManager(maxBodySize) {}
+Connection::Connection() : requestManager(0), lastAccessTime(time(NULL)), transactionCount(0) {}
+
+Connection::Connection(int serverFd, size_t maxBodySize)
+		: requestManager(maxBodySize), serverFd(serverFd), lastAccessTime(time(NULL)),
+			transactionCount(0)
+{}
+
+void Connection::setLastAcceesTime(time_t time)
+{
+	this->lastAccessTime = time;
+}
 
 void Connection::setServerFd(int serverFd)
 {
@@ -31,4 +41,26 @@ void Connection::clear()
 int Connection::getServerFd() const
 {
 	return (this->serverFd);
+}
+
+int Connection::getTransactionCount() const
+{
+	return (this->transactionCount);
+}
+
+time_t Connection::getLastAccessTime() const
+{
+	return this->lastAccessTime;
+}
+
+bool Connection::checkTimeOut()
+{
+	time_t currentTime = time(NULL);
+	bool isTimeOut = currentTime - this->lastAccessTime > this->keepAliveTime ? true : false;
+	return isTimeOut;
+}
+
+void Connection::increaseTransactionCount()
+{
+	this->transactionCount++;
 }

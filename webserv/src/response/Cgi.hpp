@@ -29,6 +29,7 @@ public:
 	int exitCode() const;
 
 	void clear();
+	void kill();
 
 	int run(
 			const std::string &cgiBin, Uri &uri, Request &req, const ServerConfig &config, int clientFd);

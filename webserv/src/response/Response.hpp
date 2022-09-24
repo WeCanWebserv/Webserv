@@ -49,6 +49,8 @@ public:
 	bool close() const;
 	void clear();
 
+	void setClose();
+
 	const char *getBuffer() const;
 	std::size_t getBufSize() const;
 	std::size_t moveBufPosition(int nbyte);
@@ -59,6 +61,7 @@ public:
 	int readPipe();
 	int writePipe();
 	void parseCgiResponse();
+	std::pair<int, int> killCgiScript();
 
 private:
 	std::map<std::string, LocationConfig>::const_iterator
