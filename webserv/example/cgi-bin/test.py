@@ -2,7 +2,7 @@
 
 import cgi
 import cgitb
-import sys
+import os
 
 def error():
     print("Content-Type: application/json", end="\r\n")
@@ -18,22 +18,21 @@ def main():
 
     form = cgi.FieldStorage()
     if "file" in form:
-        fileitem = form["file"]
-        data = sys.stdin.buffer.read()
-        open(fileitem.filename, "wb").write(data)
+        file = form["file"]
+        if file.filename:
+            filename = "./" + os.path.basename(file.filename)
+            open(filename, "wb").write(file.file.read())
 
-        print("Content-Type: application/json", end="\r\n")
-        print("\r\n")
-        print(data)
-        print("""
-        {
-          "message": "{fileitem.filename} file uploaded success"
-        }
-        """)
-
-    else:
-        error()
-        return
+            print("Content-Type: application/json", end="\r\n")
+            print("\r\n")
+            print(f"""
+            {'{'}
+            "message": "{filename} file uploaded success"
+            {'}'}
+            """)
+            return
+    error()
+    return
 
 
 if __name__ == "__main__":
