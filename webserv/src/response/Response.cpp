@@ -97,6 +97,9 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	Uri uri(startLine.uri);
 	std::map<std::string, LocationConfig>::const_iterator locIter;
 
+	if (ready())
+		return (std::make_pair(-1, -1));
+
 	std::string conn = req.getHeader().getRawValue("connection");
 	if (startLine.httpVersion == "HTTP/1.0" || ft::transform(conn, ::tolower) == "close")
 		this->isClose = true;
@@ -201,6 +204,9 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 void Response::process(int errorCode, const ServerConfig &config, bool close)
 {
+	if (ready())
+		return;
+
 	clear();
 
 	this->statusCode = errorCode;

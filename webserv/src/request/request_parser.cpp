@@ -423,12 +423,6 @@ void RequestParser::parseMultipartEachBody(Body &body,
 	std::vector<std::string> sectionSet;
 
 	sectionSet = splitStrStrict(eachBody, "\r\n\r\n", 4);
-	if (sectionSet.size() > 2)
-	{
-		Logger::debug(LOG_LINE)
-				<< "Multipart format body does not have header-body pair || section delimiter is invalid\n";
-		throw(400);
-	}
 	if (sectionSet.size() == 1)
 	{
 		body.multipartFormData.push_back(
