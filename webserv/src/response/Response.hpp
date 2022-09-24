@@ -49,6 +49,8 @@ public:
 	bool close() const;
 	void clear();
 
+	void setClose();
+
 	const char *getBuffer() const;
 	std::size_t getBufSize() const;
 	std::size_t moveBufPosition(int nbyte);

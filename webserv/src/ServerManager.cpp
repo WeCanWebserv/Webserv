@@ -173,6 +173,11 @@ void ServerManager::loop()
 						}
 						else
 						{
+							connection.increaseTransactionCount();
+
+							if (connection.getTransactionCount() + 1 >= Connection::maxTransaction)
+								response.setClose();
+
 							if (requestManager.isReady())
 							{
 								const ServerConfig &config = this->servers[connection.getServerFd()];
@@ -204,6 +209,7 @@ void ServerManager::loop()
 						}
 					}
 				}
+				connection.setLastAcceesTime(time(NULL));
 			}
 			else
 			{
@@ -293,13 +299,18 @@ void ServerManager::loop()
 				}
 			}
 		}
-		// TODO:
-		// for (connection_container_type::iterator connIter = connections.begin(); contIter != connections.end(); connIter++)
-		// {
-		//   Connection& connection = connIter.second;
-		//   if (connection.checkTimeOut())
-		//     this->disconnect(connIter.first);
-		// }
+		for (connection_container_type::iterator connIter = connections.begin(); connIter != connections.end(); connIter++)
+		{
+		  Connection& connection = connIter->second;
+		  if (connection.checkTimeOut())
+		  {
+			int clientFd = connIter->first;
+		    this->disconnect(clientFd);
+			// TODO: <int, int> = response.shutDownCgiScript();
+			// <inputPipe, outputPipe>
+
+		  }
+		}
 	}
 }
 

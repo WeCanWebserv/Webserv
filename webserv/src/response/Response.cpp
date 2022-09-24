@@ -61,6 +61,11 @@ void Response::clear()
 	this->isReady = false;
 }
 
+void Response::setClose()
+{
+	this->isClose = true;
+}
+
 const char *Response::getBuffer() const
 {
 	return (this->buffer.c_str() + this->sentBytes);
