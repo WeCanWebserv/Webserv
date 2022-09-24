@@ -277,6 +277,11 @@ void Response::parseCgiResponse()
 	setBuffer();
 }
 
+bool Response::isCgi() const
+{
+	return (this->cgi);
+}
+
 std::pair<int, int> Response::killCgiScript()
 {
 	this->cgi.kill();

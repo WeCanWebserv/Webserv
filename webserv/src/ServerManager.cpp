@@ -311,18 +311,22 @@ void ServerManager::loop()
 			{
 				this->disconnect(clientFd);
 
-				std::pair<int, int> pipeFds = connection.getResponse().killCgiScript();
-				int targetFd;
+				Response &response = connection.getResponse();
+				if (response.isCgi())
+				{
+					std::pair<int, int> pipeFds = response.killCgiScript();
+					int targetFd;
 
-				if (this->extraFds.find(pipeFds.first) != this->extraFds.end())
-					targetFd = pipeFds.first;
-				else
-					targetFd = pipeFds.second;
-				this->deleteEvent(targetFd);
-				this->extraFds.erase(targetFd);
+					if (this->extraFds.find(pipeFds.first) != this->extraFds.end())
+						targetFd = pipeFds.first;
+					else
+						targetFd = pipeFds.second;
+					this->deleteEvent(targetFd);
+					this->extraFds.erase(targetFd);
 
-				close(pipeFds.first);
-				close(pipeFds.second);
+					close(pipeFds.first);
+					close(pipeFds.second);
+				}
 			}
 		}
 	}
