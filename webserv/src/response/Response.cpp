@@ -174,8 +174,6 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 			Logger::error() << "Cgi::run: " << std::strerror(errno) << std::endl;
 			throw(500);
 		}
-		if (cgi.fail())
-			throw(503);
 
 		if (req.getBody().payload.size())
 		{
@@ -274,17 +272,8 @@ int Response::writePipe()
 
 void Response::parseCgiResponse()
 {
-	int exitCode = this->cgi.exitCode();
-
 	this->cgi.parseCgiResponse(*this);
 
-	if (exitCode != 0 && this->body.buffer.rdbuf()->in_avail() == 0)
-		throw(503);
-	else if (this->statusCode == 200 && this->header.find("Content-Length") == this->header.end())
-	{
-		setStatusCode(204);
-		this->body.buffer << CRLF;
-	}
 	setBuffer();
 }
 

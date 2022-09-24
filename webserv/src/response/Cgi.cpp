@@ -5,8 +5,8 @@
 #include "Response.hpp"
 
 #include <cerrno>
-#include <cstring>
 #include <csignal>
+#include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -34,37 +34,6 @@ Cgi::~Cgi() {}
 Cgi::operator bool() const
 {
 	return (this->isCgi);
-}
-
-bool Cgi::fail()
-{
-	int err;
-	int status = 0;
-
-	err = waitpid(this->pid, &status, WNOHANG);
-	if (err == -1)
-	{
-		Logger::error() << "Cgi: process " << this->pid << " waitpid: " << std::strerror(errno)
-										<< std::endl;
-		return (true);
-	}
-	else if (err == 0)
-		return (false); // cgi in progress
-
-	Logger::info() << "Cgi: process " << this->pid << " exit code: " << WEXITSTATUS(status)
-								 << " with signal " << WTERMSIG(status) << std::endl;
-	return (status != 0);
-}
-
-int Cgi::exitCode() const
-{
-	int status = 0;
-
-	waitpid(this->pid, &status, WNOHANG);
-
-	Logger::info() << "Cgi: process " << this->pid << " exit code: " << WEXITSTATUS(status)
-								 << " with signal " << WTERMSIG(status) << std::endl;
-	return (status);
 }
 
 void Cgi::clear()
@@ -130,6 +99,10 @@ int Cgi::run(
 		char *cmd[] = {ft::strdup(cgiBin), ft::strdup(uri.getServerPath()), NULL};
 		char **env = generateMetaVariables(uri, req, config, clientFd);
 		execve(cmd[0], cmd, env);
+
+		std::stringstream errorMsg;
+		errorMsg << "error: " << cmd[0] << " " << cmd[1] << ": " << std::strerror(errno) << "\r\n";
+		write(STDOUT_FILENO, errorMsg.str().c_str(), errorMsg.str().size());
 		exit(errno);
 	}
 	else
@@ -254,6 +227,7 @@ int Cgi::parseStatusHeader(std::stringstream &ss)
 	 * 아니라면 200 OK
 	 */
 	const std::string statusField = "status: ";
+	const std::string errorField = "error: ";
 	std::string firstLine;
 	int statusCode = 200;
 
@@ -265,6 +239,11 @@ int Cgi::parseStatusHeader(std::stringstream &ss)
 		{
 			std::string status = firstLine.substr(statusField.size());
 			statusCode = std::atoi(status.c_str());
+		}
+		else if (firstLine.compare(0, errorField.size(), errorField) == 0)
+		{
+			Logger::error() << "Cgi exec " << firstLine << std::endl;
+			throw(503);
 		}
 		else
 		{
@@ -288,7 +267,10 @@ size_t Cgi::parseContentLength(std::stringstream &ss)
 
 	pos = buffer.find(endOfHeader);
 	if (pos == std::string::npos)
-		return (0);
+	{
+		Logger::error() << "Cgi response not include end of header(CRLF CRLF)" << std::endl;
+		throw(503);
+	}
 
 	return (buffer.size() - (pos + endOfHeader.size()));
 }

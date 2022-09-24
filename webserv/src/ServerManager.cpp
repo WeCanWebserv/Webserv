@@ -1,6 +1,7 @@
 #include "ServerManager.hpp"
 
 #include <arpa/inet.h>
+#include <csignal>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -88,6 +89,7 @@ void ServerManager::loop()
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
+	signal(SIGCHLD, SIG_IGN);
 	for (;;)
 	{
 		int nfds = epoll_wait(this->epollFd, events, MAX_EVENTS, -1);
