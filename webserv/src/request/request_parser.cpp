@@ -323,7 +323,8 @@ bool RequestParser::validateHeaderField(Header &header, size_t maxBodySize)
 			if (x > maxBodySize)
 			{
 				Logger::debug(LOG_LINE) << "Payload is Too Long\n";
-				Logger::debug(LOG_LINE) << "maxBodySize: " << maxBodySize << ", content-length size: " << x << "\n";
+				Logger::debug(LOG_LINE) << "maxBodySize: " << maxBodySize << ", content-length size: " << x
+																<< "\n";
 				throw(413);
 			} // payload too long
 				//check isdigit
@@ -520,6 +521,8 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 	ssize_t length = -1;
 	bool crFlag = false;
 
+	Logger::debug(LOG_LINE) << "chunked body octet before parsing: "
+													<< std::string(bodyOctets.begin(), bodyOctets.end()) << std::endl;
 	for (i = 0; i < bodyOctets.size(); i++)
 	{
 		if (bodyOctets[i] == '\n')
@@ -533,14 +536,17 @@ ssize_t RequestParser::parseChunkedLengthLine(Body &body,
 			bodyOctets.erase(bodyOctets.begin(), bodyOctets.begin() + (i + 1)); // end는 미포함이므로 +1
 			body.setParseFlag(Body::CHUNKED_CONTENT);
 			length = ::strtol(std::string(lineBuffer.begin(), lineBuffer.end()).c_str(), NULL, 16);
+			Logger::debug(LOG_LINE) << "done) Length in chunked body : " << length << "\n";
 			lineBuffer.clear();
 			break;
 		}
 		if ((!::isxdigit(bodyOctets[i]) && bodyOctets[i] != '\r') || (bodyOctets[i] == '\r' && crFlag))
 		{
-			Logger::debug(LOG_LINE) << "Length in chunked body does not hexadecimal number\n";
+			Logger::error() << "Length in chunked body does not hexadecimal number : " << bodyOctets[i]
+											<< "\n";
 			throw(400);
 		}
+		Logger::debug(LOG_LINE) << "parsing...) Length in chunked body : " << bodyOctets[i] << "\n";
 		lineBuffer.push_back(bodyOctets[i]);
 		if (bodyOctets[i] == '\r')
 			crFlag = true;

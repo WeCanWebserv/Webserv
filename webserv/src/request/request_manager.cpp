@@ -36,7 +36,9 @@ RequestManager::~RequestManager()
 	this->pruneAll();
 }
 
-void RequestManager::setMaxBodySize(size_t maxBodySize) {
+void RequestManager::setMaxBodySize(size_t maxBodySize)
+{
+	Logger::debug(LOG_LINE) << "set  Max Body Size: " << maxBodySize << "\n";
 	this->maxBodySize = maxBodySize;
 }
 
@@ -208,7 +210,11 @@ int RequestManager::fillBuffer(const char *octets, size_t octetSize)
 																<< "th request message parsing is just completed\n";
 				octetOffset = octetSize - remainedCount;
 				if (request.getBody().payload.size() > maxBodySize)
-					throw (413);
+				{
+					Logger::error() << "chunked body payload is too long, max body size: " << maxBodySize
+													<< ", Me: " << request.getBody().payload.size() << "\n";
+					throw(413);
+				}
 				this->prepareNextRequest();
 			}
 			if (remainedCount <= 0) // 남았을 경우에만 continue, 아니면 break한다.

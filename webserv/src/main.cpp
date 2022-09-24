@@ -17,7 +17,7 @@ void usage(char *name)
 
 int main(int ac, char **av)
 {
-	Logger::init(Logger::LOGLEVEL_ERROR, "/dev/stderr");
+	Logger::init(Logger::LOGLEVEL_DEBUG, "/usr/src/webserv/webserv/binary.log");
 	if (ac > 2)
 	{
 		usage(av[1]);
