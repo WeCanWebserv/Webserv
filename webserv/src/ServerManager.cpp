@@ -44,7 +44,7 @@ ServerManager::ServerManager(const char *path)
 		{
 			this->fdInUse.insert(socketFd);
 			int optVal = 1;
-			setsockopt(socketFd, SOL_SOCKET, SO_REUSEPORT, (void *)&optVal, (socklen_t)sizeof(optVal));
+			setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, (void *)&optVal, (socklen_t)sizeof(optVal));
 		}
 
 		ServerConfig serverConfig = serverConfigs[idx];
