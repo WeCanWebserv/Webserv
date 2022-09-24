@@ -299,17 +299,29 @@ void ServerManager::loop()
 				}
 			}
 		}
-		for (connection_container_type::iterator connIter = connections.begin(); connIter != connections.end(); connIter++)
+		for (connection_container_type::iterator connIter = connections.begin();
+				 connIter != connections.end(); connIter++)
 		{
-		  Connection& connection = connIter->second;
-		  if (connection.checkTimeOut())
-		  {
 			int clientFd = connIter->first;
-		    this->disconnect(clientFd);
-			// TODO: <int, int> = response.shutDownCgiScript();
-			// <inputPipe, outputPipe>
+			Connection &connection = connIter->second;
 
-		  }
+			if (connection.checkTimeOut())
+			{
+				this->disconnect(clientFd);
+
+				std::pair<int, int> pipeFds = connection.getResponse().killCgiScript();
+				int targetFd;
+
+				if (this->extraFds.find(pipeFds.first) != this->extraFds.end())
+					targetFd = pipeFds.first;
+				else
+					targetFd = pipeFds.second;
+				this->deleteEvent(targetFd);
+				this->extraFds.erase(targetFd);
+
+				close(pipeFds.first);
+				close(pipeFds.second);
+			}
 		}
 	}
 }

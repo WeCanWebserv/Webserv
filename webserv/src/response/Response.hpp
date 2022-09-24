@@ -61,6 +61,7 @@ public:
 	int readPipe();
 	int writePipe();
 	void parseCgiResponse();
+	std::pair<int, int> killCgiScript();
 
 private:
 	std::map<std::string, LocationConfig>::const_iterator
