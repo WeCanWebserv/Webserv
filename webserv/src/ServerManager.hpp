@@ -23,7 +23,7 @@ class ServerManager
 public:
 	static const char *gDefaultPath;
 	static const int gMaxEvents = MAX_EVENTS;
-	static const int gBackLog = 1;
+	static const int gBackLog = MAX_BACKLOGS;
 
 private:
 	typedef std::map<int, const ServerConfig> server_container_type;

@@ -301,12 +301,15 @@ void ServerManager::loop()
 				}
 			}
 		}
-		for (connection_container_type::iterator connIter = connections.begin();
-				 connIter != connections.end(); connIter++)
+
+		connection_container_type::iterator connIter = connections.begin();
+		connection_container_type::iterator connIterEnd = connections.end();
+		while (connIter != connIterEnd)
 		{
 			int clientFd = connIter->first;
 			Connection &connection = connIter->second;
 
+			++connIter;
 			if (connection.checkTimeOut())
 			{
 				this->disconnect(clientFd);
