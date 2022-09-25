@@ -94,7 +94,7 @@ public:
 			{
 				ss << "\n########################## < Header " << i << " > ##########################"
 					 << std::endl;
-				Logger::log(Logger::LOGLEVEL_INFO) << ss.str() << "\n";
+				Logger::debug(LOG_LINE) << ss.str() << "\n";
 
 				this->multipartFormData[i].first.print();
 
@@ -108,7 +108,7 @@ public:
 						"#####\n";
 		}
 		ss << "\n##########################################################\n";
-		Logger::log(Logger::LOGLEVEL_INFO) << ss.str() << "\n";
+		Logger::debug(LOG_LINE) << ss.str() << "\n";
 		// #endif
 	}
 };

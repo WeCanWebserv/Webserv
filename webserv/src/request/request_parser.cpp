@@ -42,7 +42,7 @@ void RequestParser::startlineParser(Startline &startline, const std::string &lin
 	str.append("\nHTTP Version: ");
 	str.append(startline.httpVersion);
 	str.append("\n##########################################################\n");
-	Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
+	Logger::debug(LOG_LINE) << str << "\n";
 }
 
 void RequestParser::startlineMethodParser(std::string &method, const std::string &token)

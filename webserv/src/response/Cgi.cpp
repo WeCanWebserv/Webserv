@@ -98,6 +98,9 @@ int Cgi::run(
 
 		char *cmd[] = {ft::strdup(cgiBin), ft::strdup(uri.getServerPath()), NULL};
 		char **env = generateMetaVariables(uri, req, config, clientFd);
+
+		Logger::debug(LOG_LINE) << "client " << clientFd << ": exec: " << cmd[0] << " " << cmd[1]
+														<< std::endl;
 		execve(cmd[0], cmd, env);
 
 		std::stringstream errorMsg;
@@ -107,7 +110,7 @@ int Cgi::run(
 	}
 	else
 	{
-		Logger::info() << "Cgi: running cgi process... pid: " << this->pid << std::endl;
+		Logger::debug(LOG_LINE) << "running cgi process... pid: " << this->pid << std::endl;
 		close(reqPipe[0]);
 		close(resPipe[1]);
 

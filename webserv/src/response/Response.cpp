@@ -107,7 +107,8 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	locIter = findLocation(uri.path, config.tableOfLocations);
 	if (locIter == config.tableOfLocations.end())
 	{
-		Logger::info() << "Response::process: not found location block" << std::endl;
+		Logger::info() << "client " << clientFd << ": " << uri.path << ": not found location block"
+									 << std::endl;
 		throw(404);
 	}
 
@@ -116,7 +117,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 	if (location.allowedMethods.find(startLine.method) == location.allowedMethods.end())
 	{
-		Logger::info() << "Response::process: not allowed method" << std::endl;
+		Logger::info() << startLine.method << " not allowed method" << std::endl;
 		throw(405);
 	}
 
@@ -144,8 +145,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 			index = searchIndexFile(files, location.indexFiles);
 			if (index.size() == 0)
 			{
-				Logger::info() << "Response::process: uri is directory and not found index file"
-											 << std::endl;
+				Logger::error() << "client " << clientFd << ": not found index file" << std::endl;
 				throw(404);
 			}
 			uri.setIndexFile(index);
@@ -160,8 +160,8 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 	this->body.file.open(uri.getServerPath().c_str());
 	if (!this->body.file)
 	{
-		Logger::info() << "Response::process: open(" << uri.getServerPath()
-									 << "): " << std::strerror(errno) << std::endl;
+		Logger::error() << "client " << clientFd << ": open(" << uri.getServerPath()
+										<< "): " << std::strerror(errno) << std::endl;
 		throw(404);
 	}
 
@@ -171,10 +171,13 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		std::string cgiBin = location.tableOfCgiBins.at(uri.extension);
 		if (cgi.run(cgiBin, uri, req, config, clientFd))
 		{
-			Logger::error() << "Cgi::run: " << std::strerror(errno) << std::endl;
+			Logger::error() << "client " << clientFd << ": cgi::run: " << std::strerror(errno)
+											<< std::endl;
 			throw(500);
 		}
 
+		Logger::debug(LOG_LINE) << "client " << clientFd << ": pipe fd[0]=" << this->cgi.fd[0]
+														<< " fd[1]=" << this->cgi.fd[1] << std::endl;
 		if (req.getBody().payload.size())
 		{
 			this->buffer = ::Body::vecToStr(req.getBody().payload);
@@ -188,7 +191,8 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		}
 	}
 
-	Logger::debug(LOG_LINE) << "serve '" << uri.getServerPath() << "'" << std::endl;
+	Logger::debug(LOG_LINE) << "client " << clientFd << ": "
+													<< "serve '" << uri.getServerPath() << "'" << std::endl;
 	this->body.size = getFileSize();
 	if (this->body.size)
 	{
@@ -242,7 +246,8 @@ int Response::readPipe()
 	n = read(this->cgi.fd[0], buf, bufSize - 1);
 	if (n == -1)
 	{
-		Logger::error() << "Response::readBody: read: " << std::strerror(errno) << std::endl;
+		Logger::error() << "Response::readBody: read: " << this->cgi.fd[0] << ": "
+										<< std::strerror(errno) << std::endl;
 		return (-1);
 	}
 	buf[n] = '\0';
@@ -258,7 +263,8 @@ int Response::writePipe()
 	n = write(this->cgi.fd[1], getBuffer(), getBufSize());
 	if (n == -1)
 	{
-		Logger::error() << "Response::writeBody: write: " << std::strerror(errno) << std::endl;
+		Logger::error() << "Response::writeBody: write: " << this->cgi.fd[1] << ": "
+										<< std::strerror(errno) << std::endl;
 		return (-1);
 	}
 	else if (n == 0)
@@ -420,7 +426,7 @@ std::string Response::generateFileListPage(const std::string &uri,
 
 		if (stat(path.c_str(), &st) == -1)
 		{
-			Logger::error() << files[i] << ": " << std::strerror(errno) << std::endl;
+			Logger::error() << "stat: " << path << ": " << std::strerror(errno) << std::endl;
 			continue;
 		}
 
@@ -490,7 +496,7 @@ std::vector<std::string> Response::readDirectory(const std::string &path)
 	}
 	else
 	{
-		Logger::error() << "Response::readDirectory: opendir: " << std::strerror(errno) << std::endl;
+		Logger::error() << "opendir: " << path << ": " << std::strerror(errno) << std::endl;
 		throw(404);
 	}
 	return (files);
