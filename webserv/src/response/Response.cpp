@@ -135,7 +135,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		files = readDirectory(uri.getServerPath());
 		if (location.isAutoIndexOn)
 		{
-			setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root, files));
+			setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root + uri.path, files));
 			return (std::make_pair(-1, -1));
 		}
 		else

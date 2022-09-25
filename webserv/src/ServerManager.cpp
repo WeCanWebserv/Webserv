@@ -241,6 +241,7 @@ void ServerManager::loop()
 				{
 					try
 					{
+						response.readPipe();
 						response.parseCgiResponse();
 					}
 					catch (int errorCode)
