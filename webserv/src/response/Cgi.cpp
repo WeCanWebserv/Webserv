@@ -73,10 +73,8 @@ int Cgi::run(
 		return (1);
 	}
 
-	fcntl(reqPipe[0], F_SETFL, O_NONBLOCK);
 	fcntl(reqPipe[1], F_SETFL, O_NONBLOCK);
 	fcntl(resPipe[0], F_SETFL, O_NONBLOCK);
-	fcntl(resPipe[1], F_SETFL, O_NONBLOCK);
 
 	this->pid = fork();
 	if (this->pid == -1)
