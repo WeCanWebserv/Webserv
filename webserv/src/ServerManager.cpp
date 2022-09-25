@@ -1,6 +1,7 @@
 #include "ServerManager.hpp"
 
 #include <arpa/inet.h>
+#include <csignal>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -88,6 +89,7 @@ void ServerManager::loop()
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
+	signal(SIGCHLD, SIG_IGN);
 	for (;;)
 	{
 		int nfds = epoll_wait(this->epollFd, events, MAX_EVENTS, -1);
@@ -122,7 +124,7 @@ void ServerManager::loop()
 
 				if (occurredEvent & EPOLLERR || occurredEvent & EPOLLHUP)
 				{
-					Logger::error() << "ServerManager: " << eventFd << ": occurred error event" << std::endl;
+					Logger::error() << "client " << eventFd << ": occurred error event" << std::endl;
 					this->disconnect(eventFd);
 				}
 				else if (occurredEvent & EPOLLIN)
@@ -168,7 +170,8 @@ void ServerManager::loop()
 					{
 						if (response.close())
 						{
-							Logger::info() << "response done. connection close" << std::endl;
+							Logger::info() << "client " << eventFd << ": "
+														 << "response done. connection close" << std::endl;
 							this->disconnect(eventFd);
 						}
 						else
@@ -183,7 +186,8 @@ void ServerManager::loop()
 								const ServerConfig &config = this->servers[connection.getServerFd()];
 								std::pair<int, int> pipeEvent(-1, -1);
 
-								Logger::info() << "handle pipelining request" << std::endl;
+								Logger::info() << "client " << eventFd << ": handle pipelining request"
+															 << std::endl;
 								try
 								{
 									Request request = requestManager.pop();
@@ -198,12 +202,13 @@ void ServerManager::loop()
 							}
 							else if (this->modifyEvent(eventFd, currentEvent, EPOLLIN) != -1)
 							{
-								Logger::info() << "keep-alive, clear connection" << std::endl;
+								Logger::info() << "client " << eventFd << ": keep-alive, clear connection"
+															 << std::endl;
 								connection.clear(); // use request.clear(), response.claer())
 							}
 							else
 							{
-								Logger::info() << "ServerManager: " << std::strerror(errno) << std::endl;
+								Logger::info() << "client " << eventFd << ": " << std::strerror(errno) << std::endl;
 								this->disconnect(eventFd);
 							}
 						}
@@ -221,7 +226,7 @@ void ServerManager::loop()
 
 				if (foundFd == this->extraFds.end() || foundConn == this->connections.end())
 				{
-					Logger::error() << "undefined extra fd" << std::endl;
+					Logger::error() << "undefined extra fd " << eventFd << std::endl;
 					this->deleteEvent(eventFd);
 					this->extraFds.erase(eventFd);
 					close(eventFd);
@@ -254,6 +259,8 @@ void ServerManager::loop()
 					/**
 					 * client에게 Response send를 위한 이벤트 등록
 					 */
+					Logger::debug(LOG_LINE) << "client " << originFd << ": modify client event with out"
+																	<< std::endl;
 					this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
 				}
 				else if (occurredEvent & EPOLLIN)
@@ -270,6 +277,8 @@ void ServerManager::loop()
 						this->extraFds.erase(eventFd);
 						close(eventFd);
 
+						Logger::debug(LOG_LINE)
+								<< "client " << originFd << ": modify client event with out" << std::endl;
 						this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
 					}
 				}
@@ -289,6 +298,8 @@ void ServerManager::loop()
 						const ServerConfig &config = this->servers[connection.getServerFd()];
 						response.process(503, config, true);
 
+						Logger::debug(LOG_LINE)
+								<< "client " << originFd << ": modify client event with out" << std::endl;
 						this->modifyEvent(originFd, currentEvent, EPOLLIN | EPOLLOUT);
 					}
 					else
@@ -299,28 +310,35 @@ void ServerManager::loop()
 				}
 			}
 		}
-		for (connection_container_type::iterator connIter = connections.begin();
-				 connIter != connections.end(); connIter++)
+
+		connection_container_type::iterator connIter = connections.begin();
+		connection_container_type::iterator connIterEnd = connections.end();
+		while (connIter != connIterEnd)
 		{
 			int clientFd = connIter->first;
 			Connection &connection = connIter->second;
 
+			++connIter;
 			if (connection.checkTimeOut())
 			{
 				this->disconnect(clientFd);
 
-				std::pair<int, int> pipeFds = connection.getResponse().killCgiScript();
-				int targetFd;
+				Response &response = connection.getResponse();
+				if (response.isCgi())
+				{
+					std::pair<int, int> pipeFds = response.killCgiScript();
+					int targetFd;
 
-				if (this->extraFds.find(pipeFds.first) != this->extraFds.end())
-					targetFd = pipeFds.first;
-				else
-					targetFd = pipeFds.second;
-				this->deleteEvent(targetFd);
-				this->extraFds.erase(targetFd);
+					if (this->extraFds.find(pipeFds.first) != this->extraFds.end())
+						targetFd = pipeFds.first;
+					else
+						targetFd = pipeFds.second;
+					this->deleteEvent(targetFd);
+					this->extraFds.erase(targetFd);
 
-				close(pipeFds.first);
-				close(pipeFds.second);
+					close(pipeFds.first);
+					close(pipeFds.second);
+				}
 			}
 		}
 	}
@@ -368,7 +386,7 @@ void ServerManager::connect(int serverFd)
 	}
 	this->connections[fd].setServerFd(serverFd);
 	this->connections[fd].setMaxBodySize(this->servers[serverFd].maxRequestBodySize);
-	Logger::info() << "ServerManager: " << fd << " connected" << std::endl;
+	Logger::info() << "client " << fd << ": connected" << std::endl;
 	if (this->addEvent(fd, EPOLLIN) == -1)
 	{
 		Logger::error() << "ServerManager::connect: " << std::strerror(errno) << std::endl;
@@ -381,7 +399,7 @@ void ServerManager::disconnect(int fd)
 	this->deleteEvent(fd);
 	this->connections.erase(fd);
 	close(fd);
-	Logger::info() << "ServerManager: " << fd << " disconnected" << std::endl;
+	Logger::info() << "client " << fd << ": disconnected" << std::endl;
 }
 
 int ServerManager::receive(int fd)
@@ -434,12 +452,13 @@ void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<
 			this->disconnect(eventFd);
 			return;
 		}
-		Logger::debug(LOG_LINE) << "add pipe event: fd " << pipeEvent.first << std::endl;
+		Logger::debug(LOG_LINE) << "pipe " << pipeEvent.first << ": add event list" << std::endl;
 	}
 	else if (res.ready())
 	{
 		if (this->modifyEvent(eventFd, dummyEvent, EPOLLIN | EPOLLOUT) == -1)
 			this->disconnect(eventFd);
-		Logger::debug(LOG_LINE) << "modify client event to EPOLLIN | EPOLLOUT" << std::endl;
+		Logger::debug(LOG_LINE) << "client " << eventFd << ": modify client event with out"
+														<< std::endl;
 	}
 }

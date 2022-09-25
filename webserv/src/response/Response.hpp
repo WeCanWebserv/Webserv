@@ -61,6 +61,7 @@ public:
 	int readPipe();
 	int writePipe();
 	void parseCgiResponse();
+	bool isCgi() const;
 	std::pair<int, int> killCgiScript();
 
 private:

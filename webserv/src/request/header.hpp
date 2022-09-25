@@ -254,7 +254,7 @@ public:
 			}
 		}
 		str.append("\n##########################################################\n");
-		Logger::log(Logger::LOGLEVEL_INFO) << str << "\n";
+		Logger::debug(LOG_LINE) << str << "\n";
 	}
 
 private:
