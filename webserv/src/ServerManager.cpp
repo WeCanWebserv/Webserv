@@ -247,7 +247,7 @@ void ServerManager::loop()
 					catch (int errorCode)
 					{
 						const ServerConfig &config = this->servers[connection.getServerFd()];
-						response.process(errorCode, config, true);
+						response.process(errorCode, config);
 					}
 
 					/**
@@ -272,7 +272,7 @@ void ServerManager::loop()
 					if (n < 0)
 					{
 						const ServerConfig &config = this->servers[connection.getServerFd()];
-						response.process(503, config, true);
+						response.process(503, config);
 
 						this->deleteEvent(eventFd);
 						this->extraFds.erase(eventFd);
@@ -297,7 +297,7 @@ void ServerManager::loop()
 					if (rdPipe < 0)
 					{
 						const ServerConfig &config = this->servers[connection.getServerFd()];
-						response.process(503, config, true);
+						response.process(503, config);
 
 						Logger::debug(LOG_LINE)
 								<< "client " << originFd << ": modify client event with out" << std::endl;
