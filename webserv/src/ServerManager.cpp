@@ -94,7 +94,7 @@ void ServerManager::loop()
 	{
 		int nfds = epoll_wait(this->epollFd, events, MAX_EVENTS, -1);
 		if (nfds == -1)
-			throw std::runtime_error("epoll_wait");
+			continue;
 
 		for (int idx = 0; idx < nfds; idx++)
 		{
