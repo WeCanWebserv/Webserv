@@ -200,6 +200,10 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		setHeader("Content-Length", ft::toString(this->body.size));
 		this->body.buffer << this->body.file.rdbuf();
 	}
+	else
+	{
+		setStatusCode(204);
+	}
 	setBuffer();
 	return (std::make_pair(-1, -1));
 }
@@ -228,6 +232,10 @@ void Response::process(int errorCode, const ServerConfig &config, bool close)
 				setHeader("Content-Type", MediaType::get(Uri(errorPage).extension));
 				setHeader("Content-Length", ft::toString(this->body.size));
 				this->body.buffer << this->body.file.rdbuf();
+			}
+			else
+			{
+				setStatusCode(204);
 			}
 			setBuffer();
 			return;
