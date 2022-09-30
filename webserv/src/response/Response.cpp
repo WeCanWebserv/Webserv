@@ -146,7 +146,7 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		files = readDirectory(uri.getServerPath());
 		if (location.isAutoIndexOn)
 		{
-			setBodyToDefaultPage(generateFileListPage(startLine.uri, location.root + uri.path, files));
+			setBodyToDefaultPage(generateFileListPage(startLine.uri, uri.getServerPath(), files));
 			return (std::make_pair(-1, -1));
 		}
 		else
@@ -447,13 +447,19 @@ std::string Response::generateFileListPage(const std::string &uri,
 
 		if (stat(path.c_str(), &st) == -1)
 		{
-			Logger::error() << "stat: " << path << ": " << std::strerror(errno) << std::endl;
+			Logger::error() << "stat: " << root << ", " << files[i] << ": " << std::strerror(errno) << std::endl;
 			continue;
 		}
 
 		// file name
-		html << "<a href=\"" << files[i] << "\">" << files[i] << "</a>";
-		html << std::string(50 - files[i].size(), ' ');
+		std::string filename = files[i];
+		if (filename.size() > 50)
+		{
+			filename.resize(46);
+			filename += "..";
+		}
+		html << "<a href=\"" << filename << "\">" << filename << "</a>";
+		html << std::string(50 - filename.size(), ' ');
 
 		// time of last status change
 		html << timeInfoToString(std::gmtime(&st.st_ctime), "%a, %d %b %G %T");
