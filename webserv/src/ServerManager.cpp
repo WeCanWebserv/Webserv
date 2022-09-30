@@ -24,8 +24,14 @@
 #include "Logger.hpp"
 #include "response/Response.hpp"
 
+// static
+const char *ServerManager::gDefaultPath = DEFAULT_PATH;
+
 ServerManager::ServerManager(const char *path)
 {
+	if (!path)
+		path = ServerManager::gDefaultPath;
+
 	this->epollFd = epoll_create(this->gMaxEvents);
 	if (this->epollFd == -1)
 		throw std::runtime_error("epoll_create");

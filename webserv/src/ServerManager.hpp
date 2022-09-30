@@ -38,7 +38,7 @@ private:
 	int epollFd;
 
 public:
-	ServerManager(const char *path = DEFAULT_PATH);
+	ServerManager(const char *path);
 	~ServerManager();
 
 	void loop();
