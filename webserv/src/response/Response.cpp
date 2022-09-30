@@ -117,8 +117,19 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 
 	if (location.allowedMethods.find(startLine.method) == location.allowedMethods.end())
 	{
-		Logger::info() << startLine.method << " not allowed method" << std::endl;
-		throw(405);
+		Logger::info() << "client " << clientFd << ": " << startLine.method << " is not allowed method"
+									 << std::endl;
+		throw(403);
+	}
+	else if (startLine.method.compare("GET") != 0 &&
+					 location.tableOfCgiBins.find(uri.extension) == location.tableOfCgiBins.end())
+	{
+		Logger::info() << "client " << clientFd << ": regular file only support GET" << std::endl;
+
+		headerType additionalHeader;
+		additionalHeader["Allow"] = "GET";
+		process(405, config, additionalHeader);
+		return (std::make_pair(-1, -1));
 	}
 
 	if (location.isRedirectionSet)
@@ -200,11 +211,15 @@ std::pair<int, int> Response::process(Request &req, const ServerConfig &config, 
 		setHeader("Content-Length", ft::toString(this->body.size));
 		this->body.buffer << this->body.file.rdbuf();
 	}
+	else
+	{
+		setStatusCode(204);
+	}
 	setBuffer();
 	return (std::make_pair(-1, -1));
 }
 
-void Response::process(int errorCode, const ServerConfig &config, bool close)
+void Response::process(int errorCode, const ServerConfig &config, headerType additionalHeader)
 {
 	if (ready())
 		return;
@@ -212,7 +227,8 @@ void Response::process(int errorCode, const ServerConfig &config, bool close)
 	clear();
 
 	this->statusCode = errorCode;
-	this->isClose |= close;
+	this->isClose = true;
+	this->header.insert(additionalHeader.begin(), additionalHeader.end());
 
 	if (config.tableOfErrorPages.find(errorCode) != config.tableOfErrorPages.end())
 	{
@@ -228,6 +244,10 @@ void Response::process(int errorCode, const ServerConfig &config, bool close)
 				setHeader("Content-Type", MediaType::get(Uri(errorPage).extension));
 				setHeader("Content-Length", ft::toString(this->body.size));
 				this->body.buffer << this->body.file.rdbuf();
+			}
+			else
+			{
+				setStatusCode(204);
 			}
 			setBuffer();
 			return;
@@ -372,6 +392,7 @@ std::pair<int, int> Response::setRedirect(int status, const std::string &locatio
 	clear();
 	setStatusCode(status);
 	setHeader("Location", location);
+	setClose();
 	setBuffer();
 	return (std::make_pair(-1, -1));
 }

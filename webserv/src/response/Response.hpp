@@ -56,7 +56,8 @@ public:
 	std::size_t moveBufPosition(int nbyte);
 
 	std::pair<int, int> process(Request &req, const ServerConfig &config, int clientFd);
-	void process(int errorCode, const ServerConfig &config, bool close = true);
+	void
+	process(int errorCode, const ServerConfig &config, headerType additionalHeader = headerType());
 
 	int readPipe();
 	int writePipe();

@@ -55,8 +55,7 @@ void RequestParser::startlineMethodParser(std::string &method, const std::string
 	if ((idx = findToken(token, RequestParser::methodTokenSet)) < 0)
 	{
 		Logger::debug(LOG_LINE) << "No match method in Method Tokens\n";
-		// throw(400);
-		throw(405);
+		throw(403);
 	}
 	method = RequestParser::methodTokenSet[idx];
 }
