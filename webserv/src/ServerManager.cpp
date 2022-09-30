@@ -104,6 +104,7 @@ void ServerManager::loop()
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event currentEvent;
 
+	std::memset(&currentEvent, 0, sizeof(currentEvent));
 	signal(SIGCHLD, SIG_IGN);
 	for (;;)
 	{
@@ -373,6 +374,8 @@ void ServerManager::loop()
 int ServerManager::addEvent(int fd, int option)
 {
 	struct epoll_event event;
+
+	std::memset(&event, 0, sizeof(event));
 	event.events = option;
 	event.data.fd = fd;
 	return epoll_ctl(this->epollFd, EPOLL_CTL_ADD, fd, &event);
@@ -467,6 +470,7 @@ void ServerManager::registerResposneEvent(int eventFd, Response &res, std::pair<
 {
 	epoll_event dummyEvent;
 
+	std::memset(&dummyEvent, 0, sizeof(dummyEvent));
 	if (pipeEvent.first != -1)
 	{
 		this->extraFds[pipeEvent.first] = eventFd;
