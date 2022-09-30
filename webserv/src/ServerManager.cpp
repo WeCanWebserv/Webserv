@@ -58,6 +58,8 @@ ServerManager::ServerManager(const char *path)
 		sockAddr.sin_port = htons(atoi(serverConfig.listennedPort.c_str()));
 		Logger::debug(LOG_LINE) << "host: " << serverConfig.listennedHost
 														<< ", port: " << atoi(serverConfig.listennedPort.c_str()) << std::endl;
+		if (sockAddr.sin_addr.s_addr == 0xffffffff)
+			throw std::runtime_error("inet_addr");
 		if (bind(socketFd, (const struct sockaddr *)&sockAddr, sizeof(sockAddr)) == -1)
 			throw std::runtime_error("bind");
 
