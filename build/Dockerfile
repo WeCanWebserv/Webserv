@@ -1,4 +1,4 @@
-FROM gcc:latest
+FROM gcc:9.5
 
 RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
 
