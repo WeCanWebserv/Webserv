@@ -230,7 +230,7 @@ void RequestParser::headerParser(Header &header,
 	{
 		if (!RequestParser::checkHeaderFieldContain(headerbuf, CONTENT_LENGTH))
 		{
-			if (!(method == "GET" || method == "HEAD"))
+			if (!(method == "GET" || method == "DELETE"))
 			{
 				Logger::debug(LOG_LINE) << "Length is required\n";
 				throw(411); // length required error
