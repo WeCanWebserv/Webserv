@@ -49,7 +49,6 @@ ServerManager::ServerManager(const char *path)
 			throw std::runtime_error("socket");
 		else
 		{
-			this->fdInUse.insert(socketFd);
 			int optVal = 1;
 			setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, (void *)&optVal, (socklen_t)sizeof(optVal));
 		}
@@ -77,17 +76,27 @@ ServerManager::ServerManager(const char *path)
 
 ServerManager::~ServerManager()
 {
-	this->clear();
-	close(this->epollFd);
-}
-
-void ServerManager::clear()
-{
-	for (std::set<int>::iterator iter = this->fdInUse.begin(); iter != this->fdInUse.end(); iter++)
+	extra_fd_container_type::iterator extraIter = extraFds.begin();
+	while (extraIter != extraFds.end())
 	{
-		int fd = *iter;
-		close(fd);
+		close(extraIter->first);
+		extraIter++;
 	}
+
+	connection_container_type::iterator connIter = connections.begin();
+	while (connIter != connections.end())
+	{
+		close(connIter->first);
+		connIter++;
+	}
+
+	server_container_type::iterator servIter = servers.begin();
+	while (servIter != servers.end())
+	{
+		close(servIter->first);
+		servIter++;
+	}
+	close(this->epollFd);
 }
 
 void ServerManager::loop()
@@ -385,7 +394,6 @@ void ServerManager::connect(int serverFd)
 		return;
 	}
 	fcntl(fd, F_SETFL, O_NONBLOCK);
-	this->fdInUse.insert(fd);
 
 	if (this->connections.find(fd) != this->connections.end())
 	{
