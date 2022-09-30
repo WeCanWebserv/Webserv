@@ -346,8 +346,6 @@ void ServerManager::loop()
 			++connIter;
 			if (connection.checkTimeOut())
 			{
-				this->disconnect(clientFd);
-
 				Response &response = connection.getResponse();
 				if (response.isCgi())
 				{
@@ -364,6 +362,8 @@ void ServerManager::loop()
 					close(pipeFds.first);
 					close(pipeFds.second);
 				}
+
+				this->disconnect(clientFd);
 			}
 		}
 	}
