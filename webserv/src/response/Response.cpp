@@ -392,6 +392,7 @@ std::pair<int, int> Response::setRedirect(int status, const std::string &locatio
 	clear();
 	setStatusCode(status);
 	setHeader("Location", location);
+	setClose();
 	setBuffer();
 	return (std::make_pair(-1, -1));
 }
