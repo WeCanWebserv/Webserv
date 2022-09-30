@@ -14,7 +14,7 @@
 #define BUFFER_SIZE 32768
 #endif // BUFFER_SIZE
 
-#define DEFAULT_PATH "../config/default.conf"
+#define DEFAULT_PATH "./config/default.conf"
 #define MAX_EVENTS 10
 #define MAX_BACKLOGS 10
 
