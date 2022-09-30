@@ -33,9 +33,10 @@ COPY docker-entrypoint.sh /usr/local/bin/
 
 WORKDIR /usr/share/webserv
 
-EXPOSE 80
+EXPOSE 8080
 
 # USER www-data
 
 ENTRYPOINT [ "docker-entrypoint.sh" ]
-CMD [ "./webserv", "config/wordpress.conf" ]
+# CMD [ "./webserv", "config/wordpress.conf" ]
+CMD [ "tail", "-f", "/dev/null" ]
