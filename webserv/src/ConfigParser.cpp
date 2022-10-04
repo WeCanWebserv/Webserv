@@ -566,11 +566,11 @@ ServerConfig ServerBlock::toServerConfig()
 			int port;
 			buffer.str(tokens[2]);
 			buffer >> port;
-			if (!buffer.eof())
+			if (!buffer.eof() || port < 0)
 			{
 				Logger::error() << __func__ << ":" << __LINE__ << " ServerBlock: port: format error"
 												<< std::endl;
-				throw std::runtime_error("format error: invaild integer string");
+				throw std::runtime_error("format error: invaild port");
 			}
 			serverConfig.listennedPort = tokens[2];
 			break;

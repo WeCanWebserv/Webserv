@@ -6,6 +6,7 @@ RUN apt-get -y -qq update && \
 	php-mbstring \
 	php-cgi \
 	wget \
+	curl \
 	mariadb-client
 
 WORKDIR /var/www/wordpress/
@@ -27,15 +28,19 @@ RUN apt-get -y -qq update && \
 	apt-get -y -qq install \
 	build-essential \
 	procps \
+	python3 \
+	lsof \
 	vim
 
 COPY docker-entrypoint.sh /usr/local/bin/
 
 WORKDIR /usr/share/webserv
 
-EXPOSE 80
+EXPOSE 8080
+EXPOSE 8888
 
 # USER www-data
 
 ENTRYPOINT [ "docker-entrypoint.sh" ]
-CMD [ "./webserv", "config/wordpress.conf" ]
+# CMD [ "./webserv", "config/wordpress.conf" ]
+CMD [ "tail", "-f", "/dev/null" ]

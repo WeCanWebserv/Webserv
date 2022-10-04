@@ -4,7 +4,6 @@
 #include <sys/epoll.h>
 
 #include <map>
-#include <set>
 
 #include "Config.hpp"
 #include "Connection.hpp"
@@ -14,7 +13,7 @@
 #define BUFFER_SIZE 32768
 #endif // BUFFER_SIZE
 
-#define DEFAULT_PATH "../config/default.conf"
+#define DEFAULT_PATH "./config/default.conf"
 #define MAX_EVENTS 10
 #define MAX_BACKLOGS 10
 
@@ -34,15 +33,13 @@ private:
 	extra_fd_container_type extraFds;
 	connection_container_type connections;
 	server_container_type servers;
-	std::set<int> fdInUse;
 	int epollFd;
 
 public:
-	ServerManager(const char *path = DEFAULT_PATH);
+	ServerManager(const char *path);
 	~ServerManager();
 
 	void loop();
-	void clear();
 
 protected:
 	// used in connect()
